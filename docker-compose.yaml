@@ -1,4 +1,4 @@
-version: '3.8'
+version: '1.1.0'
 
 services:
   postgres:
@@ -14,6 +14,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+
   pgadmin:
     image: dpage/pgadmin4
     container_name: pgadmin
@@ -27,6 +28,13 @@ services:
       - postgres
     volumes:
       - pgadmin_data:/var/lib/pgadmin
+
+
+  redis:
+    image: redis:7
+    container_name: redis-server
+    ports:
+      - "6379:6379"
 
 volumes:
   postgres_data:
