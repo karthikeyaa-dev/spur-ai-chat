@@ -1,14 +1,25 @@
-const { redisClient } = require('../config/redis');
+import { redisClient, redisReady } from "../config/redis";
+import {
+  Conversation,
+  ConversationStatus,
+  ConversationSummary,
+  GetOrCreateConversationParams,
+  CreateNewConversationServiceParams,
+} from "../types/conversation.types";
 
 class ConversationService {
-  async getOrCreateConversation({ session_id }) {
+  private readonly CONVERSATION_TTL = 86400; // 24 hours in seconds
+
+  async getOrCreateConversation({ session_id }: GetOrCreateConversationParams): Promise<Conversation> {
     try {
+      await redisReady;
+      
       const conversationsKey = `session:${session_id}:conversations`;
       
       let conversationsData = await redisClient.get(conversationsKey);
-      let conversations = conversationsData ? JSON.parse(conversationsData) : [];
+      let conversations: ConversationSummary[] = conversationsData ? JSON.parse(conversationsData) : [];
       
-      let activeConversation = conversations.find(conv => conv.status === 'active');
+      let activeConversation = conversations.find(conv => conv.status === ConversationStatus.ACTIVE);
       
       if (activeConversation) {
         const conversationKey = `conversation:${activeConversation.id}`;
@@ -19,28 +30,27 @@ class ConversationService {
       }
       
       const newConversationId = this.generateConversationId();
-      const newConversation = {
+      const newConversation: Conversation = {
         id: newConversationId,
         session_id: session_id,
-        status: 'active',
+        status: ConversationStatus.ACTIVE,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
       
       const conversationKey = `conversation:${newConversationId}`;
       await redisClient.set(conversationKey, JSON.stringify(newConversation), {
-        EX: 86400 // 24 hours
+        EX: this.CONVERSATION_TTL
       });
       
-
       conversations.push({
         id: newConversationId,
-        status: 'active',
+        status: ConversationStatus.ACTIVE,
         created_at: newConversation.created_at
       });
       
       await redisClient.set(conversationsKey, JSON.stringify(conversations), {
-        EX: 86400
+        EX: this.CONVERSATION_TTL
       });
       
       console.log(`[Conversation] Created: ${newConversationId} for session ${session_id}`);
@@ -51,37 +61,38 @@ class ConversationService {
     }
   }
   
-  async createNewConversation({ session_id }) {
+  async createNewConversation({ session_id }: CreateNewConversationServiceParams): Promise<Conversation> {
     try {
+      await redisReady;
+      
       await this.closeActiveConversation(session_id);
 
       const newConversationId = this.generateConversationId();
-      const newConversation = {
+      const newConversation: Conversation = {
         id: newConversationId,
         session_id: session_id,
-        status: 'active',
+        status: ConversationStatus.ACTIVE,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
       
       const conversationKey = `conversation:${newConversationId}`;
       await redisClient.set(conversationKey, JSON.stringify(newConversation), {
-        EX: 86400
+        EX: this.CONVERSATION_TTL
       });
       
       const conversationsKey = `session:${session_id}:conversations`;
       let conversationsData = await redisClient.get(conversationsKey);
-      let conversations = conversationsData ? JSON.parse(conversationsData) : [];
+      let conversations: ConversationSummary[] = conversationsData ? JSON.parse(conversationsData) : [];
       
-
       conversations.push({
         id: newConversationId,
-        status: 'active',
+        status: ConversationStatus.ACTIVE,
         created_at: newConversation.created_at
       });
       
       await redisClient.set(conversationsKey, JSON.stringify(conversations), {
-        EX: 86400
+        EX: this.CONVERSATION_TTL
       });
       
       console.log(`[Conversation] Created new conversation: ${newConversationId} for session ${session_id}`);
@@ -92,8 +103,10 @@ class ConversationService {
     }
   }
   
-  async getConversation(conversation_id) {
+  async getConversation(conversation_id: string): Promise<Conversation | null> {
     try {
+      await redisReady;
+      
       const conversationKey = `conversation:${conversation_id}`;
       const conversation = await redisClient.get(conversationKey);
       
@@ -108,8 +121,10 @@ class ConversationService {
     }
   }
   
-  async getAllConversations(session_id) {
+  async getAllConversations(session_id: string): Promise<Conversation[]> {
     try {
+      await redisReady;
+      
       const conversationsKey = `session:${session_id}:conversations`;
       let conversationsData = await redisClient.get(conversationsKey);
       
@@ -117,9 +132,9 @@ class ConversationService {
         return [];
       }
       
-      const conversationsList = JSON.parse(conversationsData);
+      const conversationsList: ConversationSummary[] = JSON.parse(conversationsData);
       
-      const fullConversations = [];
+      const fullConversations: Conversation[] = [];
       for (const conv of conversationsList) {
         const conversationKey = `conversation:${conv.id}`;
         const conversationData = await redisClient.get(conversationKey);
@@ -128,7 +143,7 @@ class ConversationService {
         }
       }
       
-      fullConversations.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      fullConversations.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       
       return fullConversations;
     } catch (error) {
@@ -137,8 +152,10 @@ class ConversationService {
     }
   }
   
-  async closeActiveConversation(session_id) {
+  async closeActiveConversation(session_id: string): Promise<void> {
     try {
+      await redisReady;
+      
       const conversationsKey = `session:${session_id}:conversations`;
       let conversationsData = await redisClient.get(conversationsKey);
       
@@ -146,24 +163,24 @@ class ConversationService {
         return;
       }
       
-      let conversations = JSON.parse(conversationsData);
+      let conversations: ConversationSummary[] = JSON.parse(conversationsData);
       
-      const activeIndex = conversations.findIndex(conv => conv.status === 'active');
+      const activeIndex = conversations.findIndex(conv => conv.status === ConversationStatus.ACTIVE);
       
       if (activeIndex !== -1) {
-        conversations[activeIndex].status = 'closed';
+        conversations[activeIndex].status = ConversationStatus.CLOSED;
         await redisClient.set(conversationsKey, JSON.stringify(conversations), {
-          EX: 86400
+          EX: this.CONVERSATION_TTL
         });
         
         const conversationKey = `conversation:${conversations[activeIndex].id}`;
         const conversationData = await redisClient.get(conversationKey);
         if (conversationData) {
-          const conversation = JSON.parse(conversationData);
-          conversation.status = 'closed';
+          const conversation: Conversation = JSON.parse(conversationData);
+          conversation.status = ConversationStatus.CLOSED;
           conversation.updated_at = new Date().toISOString();
           await redisClient.set(conversationKey, JSON.stringify(conversation), {
-            EX: 86400
+            EX: this.CONVERSATION_TTL
           });
         }
         
@@ -174,8 +191,10 @@ class ConversationService {
     }
   }
   
-  async deleteConversation(conversation_id, session_id = null) {
+  async deleteConversation(conversation_id: string, session_id?: string): Promise<{ id: string; deleted: boolean } | null> {
     try {
+      await redisReady;
+      
       const conversationKey = `conversation:${conversation_id}`;
       const conversation = await redisClient.get(conversationKey);
       
@@ -183,7 +202,7 @@ class ConversationService {
         return null;
       }
       
-      const conversationData = JSON.parse(conversation);
+      const conversationData: Conversation = JSON.parse(conversation);
       const targetSessionId = session_id || conversationData.session_id;
       
       await redisClient.del(conversationKey);
@@ -192,10 +211,10 @@ class ConversationService {
       let conversationsData = await redisClient.get(conversationsKey);
       
       if (conversationsData) {
-        let conversations = JSON.parse(conversationsData);
+        let conversations: ConversationSummary[] = JSON.parse(conversationsData);
         conversations = conversations.filter(conv => conv.id !== conversation_id);
         await redisClient.set(conversationsKey, JSON.stringify(conversations), {
-          EX: 86400
+          EX: this.CONVERSATION_TTL
         });
       }
       
@@ -207,9 +226,9 @@ class ConversationService {
     }
   }
   
-  generateConversationId() {
-    return `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  private generateConversationId(): string {
+    return `conv_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
   }
 }
 
-module.exports = new ConversationService();
+export default new ConversationService();
