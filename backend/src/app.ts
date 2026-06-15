@@ -5,6 +5,11 @@ import morgan from 'morgan';
 import { setupSwagger } from './config/swagger';
 import conversationRoutes from './routes/conversation.routes';
 import authRoutes from './routes/auth.routes';
+import  userRoutes from './routes/user.routes';
+
+// Import database (THIS IS CRITICAL - it initializes models)
+import './models'; // This runs the model initialization
+import sequelize from './models'; // Import if you need the connection
 
 // Load environment variables
 dotenv.config({ path: path.join(__dirname, '../.env') });
@@ -19,17 +24,30 @@ app.use(express.urlencoded({ extended: true }));
 // Setup Swagger documentation
 setupSwagger(app);
 
-// Routes - Fixed mounting
-app.use('/api', conversationRoutes);  // Conversation routes under /api
-app.use('/api/auth', authRoutes);      // Auth routes under /api/auth
+// Routes
+app.use('/api', conversationRoutes);
+app.use('/api', userRoutes);
+app.use('/api/auth', authRoutes);
 
 // Health check
-app.get('/health', (req: Request, res: Response) => {
-  res.json({ 
-    status: 'ok', 
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
-  });
+app.get('/health', async (req: Request, res: Response) => {
+  try {
+    // Test database connection
+    await sequelize.authenticate();
+    res.json({ 
+      status: 'ok', 
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      database: 'connected'
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      status: 'error', 
+      timestamp: new Date().toISOString(),
+      database: 'disconnected',
+      error: error.message
+    });
+  }
 });
 
 // Root endpoint

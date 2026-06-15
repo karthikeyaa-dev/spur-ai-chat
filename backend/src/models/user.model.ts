@@ -26,13 +26,14 @@ export interface UserAttributes {
   password: string;
   role: UserRole;
   is_active: boolean;
+  email_verified_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
 
 export type UserCreationAttributes = Optional<
   UserAttributes,
-  "id" | "role" | "is_active" | "created_at" | "updated_at"
+  "id" | "role" | "is_active" | "email_verified_at" | "created_at" | "updated_at"
 >;
 
 export class User
@@ -44,6 +45,7 @@ export class User
   declare password: string;
   declare role: CreationOptional<UserRole>;
   declare is_active: CreationOptional<boolean>;
+  declare email_verified_at: CreationOptional<Date | null>;
   declare created_at: CreationOptional<Date>;
   declare updated_at: CreationOptional<Date>;
 
@@ -90,7 +92,7 @@ export class User
     return getPasswordHash(password);
   }
 
-  static initModel(sequelize: Sequelize) {
+  static initModel(sequelize: Sequelize): typeof User {
     User.init(
       {
         id: {
@@ -128,6 +130,11 @@ export class User
           defaultValue: true,
         },
 
+        email_verified_at: {
+  	  type: DataTypes.DATE,
+  	  allowNull: true,
+	},
+
         created_at: {
           type: DataTypes.DATE,
           allowNull: false,
@@ -146,6 +153,18 @@ export class User
         timestamps: true,
         createdAt: "created_at",
         updatedAt: "updated_at",
+        hooks: {
+          beforeCreate: async (user: User) => {
+            if (user.password && !isPasswordHashed(user.password)) {
+              user.password = await getPasswordHash(user.password);
+            }
+          },
+          beforeUpdate: async (user: User) => {
+            if (user.changed('password') && user.password && !isPasswordHashed(user.password)) {
+              user.password = await getPasswordHash(user.password);
+            }
+          },
+        },
       }
     );
 
@@ -158,5 +177,19 @@ export class User
       as: "refresh_tokens",
       onDelete: "CASCADE",
     });
+    
+    User.hasMany(models.Conversation, {
+      foreignKey: "user_id",
+      as: "conversations",
+      onDelete: "SET NULL",
+    });
+
+    User.hasMany(models.VerificationToken, {
+      foreignKey: "user_id",
+      as: "verification_tokens",
+      onDelete: "CASCADE",
+    });
   }
 }
+
+export default User;

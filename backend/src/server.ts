@@ -1,24 +1,36 @@
 import app from './app';
-import dotenv from 'dotenv';
-import path from 'path';
+import sequelize from './models';
 
-// Load .env from parent directory FIRST
-dotenv.config({ path: path.join(__dirname, '.env') });
+const PORT = process.env.PORT || 3000;
 
-// Debug: Check if env is loaded
-console.log('Environment loaded:');
-console.log('  REDIS_HOST:', process.env.REDIS_HOST);
-console.log('  REDIS_PORT:', process.env.REDIS_PORT);
-console.log('  DB_HOST:', process.env.DB_HOST);
-console.log('  DB_NAME:', process.env.DB_NAME);
+async function startServer() {
+  try {
+    // Test database connection
+    await sequelize.authenticate();
+    console.log('✅ Database connection established successfully.');
+    
+    // Sync database (optional - be careful with force:true in production)
+    await sequelize.sync({ alter: false });
+    console.log('✅ Database synchronized successfully.');
+    
+    // Start server
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on http://localhost:${PORT}`);
+      console.log(`📚 API Documentation: http://localhost:${PORT}/api-docs`);
+      console.log(`🏥 Health check: http://localhost:${PORT}/health`);
+    });
+    
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
+}
 
-// Rest of your server code...
-const PORT: number = parseInt(process.env.PORT || '3000', 10);
-
-const startServer = (): void => {
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-  });
-};
+// Handle graceful shutdown
+process.on('SIGINT', async () => {
+  console.log('Shutting down gracefully...');
+  await sequelize.close();
+  process.exit(0);
+});
 
 startServer();

@@ -4,8 +4,6 @@ import {
   Sequelize, 
   Optional,
   CreationOptional,
-  InferAttributes,
-  InferCreationAttributes,
   ForeignKey
 } from "sequelize";
 import { uuidv7 } from "uuidv7";
@@ -30,7 +28,7 @@ export interface ConversationAttributes {
   updated_at: CreationOptional<Date>;
 }
 
-// Define creation attributes (fields that are optional when creating)
+// Define creation attributes
 export interface ConversationCreationAttributes
   extends Optional<ConversationAttributes, "id" | "status" | "created_at" | "updated_at"> {}
 
@@ -49,110 +47,97 @@ export class Conversation
   // Association properties
   declare user?: User;
   declare messages?: Message[];
-}
 
-// Initialize the model
-export const initConversationModel = (sequelize: Sequelize): typeof Conversation => {
-  Conversation.init(
-    {
-      id: {
-        type: DataTypes.UUID,
-        primaryKey: true,
-        defaultValue: () => uuidv7(),
-      },
-      session_id: {
-        type: DataTypes.UUID,
-        allowNull: false,
-        validate: {
-          isUUID: 4,
+  static initModel(sequelize: Sequelize): typeof Conversation {
+    Conversation.init(
+      {
+        id: {
+          type: DataTypes.UUID,
+          primaryKey: true,
+          defaultValue: (): string => uuidv7(),
+        },
+        session_id: {
+          type: DataTypes.UUID,
+          allowNull: false,
+        },
+        user_id: {
+          type: DataTypes.UUID,
+          allowNull: true,
+          references: {
+            model: "users",
+            key: "id",
+          },
+        },
+        status: {
+          type: DataTypes.ENUM(...Object.values(ConversationStatus)),
+          allowNull: false,
+          defaultValue: ConversationStatus.ACTIVE,
+        },
+        created_at: {
+          type: DataTypes.DATE,
+          allowNull: false,
+          defaultValue: DataTypes.NOW,
+        },
+        updated_at: {
+          type: DataTypes.DATE,
+          allowNull: false,
+          defaultValue: DataTypes.NOW,
         },
       },
-      user_id: {
-        type: DataTypes.UUID,
-        allowNull: true,
-        references: {
-          model: "users",
-          key: "id",
+      {
+        sequelize,
+        tableName: "conversations",
+        timestamps: true,
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+        indexes: [
+          {
+            fields: ["session_id"],
+            name: "conversations_session_id_idx",
+          },
+          {
+            fields: ["user_id"],
+            name: "conversations_user_id_idx",
+          },
+          {
+            fields: ["status"],
+            name: "conversations_status_idx",
+          },
+          {
+            fields: ["created_at"],
+            name: "conversations_created_at_idx",
+          },
+        ],
+        hooks: {
+          beforeUpdate: (conversation: Conversation) => {
+            conversation.updated_at = new Date();
+          },
         },
-        validate: {
-          isUUID: 4,
-        },
-      },
-      status: {
-        type: DataTypes.ENUM(...Object.values(ConversationStatus)),
-        allowNull: false,
-        defaultValue: ConversationStatus.ACTIVE,
-        validate: {
-          isIn: [Object.values(ConversationStatus)],
-        },
-      },
-      created_at: {
-        type: DataTypes.DATE,
-        allowNull: false,
-        defaultValue: DataTypes.NOW,
-      },
-      updated_at: {
-        type: DataTypes.DATE,
-        allowNull: false,
-        defaultValue: DataTypes.NOW,
-      },
-    },
-    {
-      sequelize,
-      tableName: "conversations",
-      timestamps: true,
-      createdAt: "created_at",
-      updatedAt: "updated_at",
-      indexes: [
-        {
-          fields: ["session_id"],
-          name: "conversations_session_id_idx",
-        },
-        {
-          fields: ["user_id"],
-          name: "conversations_user_id_idx",
-        },
-        {
-          fields: ["status"],
-          name: "conversations_status_idx",
-        },
-        {
-          fields: ["created_at"],
-          name: "conversations_created_at_idx",
-        },
-      ],
-      hooks: {
-        beforeUpdate: (conversation: Conversation) => {
-          conversation.updated_at = new Date();
-        },
-      },
+      }
+    );
+
+    return Conversation;
+  }
+
+  static associate(models: any) {
+    const { User, Message } = models;
+    
+    if (User) {
+      Conversation.belongsTo(User, {
+        foreignKey: "user_id",
+        as: "user",
+        onDelete: "SET NULL",
+      });
     }
-  );
 
-  return Conversation;
-};
-
-// Define associations
-export const associateConversation = (models: any) => {
-  const Conversation = models.Conversation;
-  const User = models.User;
-  const Message = models.Message;
-
-  if (User && Conversation.belongsTo) {
-    Conversation.belongsTo(User, {
-      foreignKey: "user_id",
-      as: "user",
-      onDelete: "SET NULL",
-    });
+    if (Message) {
+      Conversation.hasMany(Message, {
+        foreignKey: "conversation_id",
+        as: "messages",
+        onDelete: "CASCADE",
+      });
+    }
   }
-
-  if (Message && Conversation.hasMany) {
-    Conversation.hasMany(Message, {
-      foreignKey: "conversation_id",
-      as: "messages",
-      onDelete: "CASCADE",
-    });
-  }
-};
+}
 
 export default Conversation;

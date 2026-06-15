@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { RefreshToken, RefreshTokenStatus } from "../models/RefreshToken.model";
 import { encodeToken, decodeToken } from "../utils/hmac";
 import { CONFIG } from "../config/AuthConf";
 
@@ -141,120 +142,62 @@ export interface SaveRefreshTokenParams {
   jti: string;
   expiresAt: Date;
   deviceId: string;
-  parentJti?: string | null;
   ipAddress?: string | null;
   userAgent?: string | null;
+  parentJti?: string | null;
 }
 
-export type Transaction = any; // Define proper transaction type if needed
+export type Transaction = any;
 
-// Mock RefreshToken and TokenStatus if the actual model doesn't exist yet
-export enum TokenStatus {
-  ACTIVE = "active",
-  REVOKED = "revoked",
-  EXPIRED = "expired",
-}
-
-export interface RefreshToken {
-  id: string;
-  user_id: string;
-  jti: string;
-  parent_jti: string | null;
-  expires_at: Date;
-  device_id: string;
-  ip_address: string | null;
-  user_agent: string | null;
-  used_at: Date | null;
-  revoked_at: Date | null;
-  status: TokenStatus;
-  created_at: Date;
-  updated_at: Date;
-  save?: () => Promise<void>;
-}
-
-// Mock RefreshToken model (replace with actual import when available)
-const RefreshTokenModel = {
-  create: async (data: any, options?: any): Promise<RefreshToken> => {
-    return {
-      id: randomUUID(),
-      ...data,
-      created_at: new Date(),
-      updated_at: new Date(),
-    } as RefreshToken;
-  },
-  findOne: async (options: any): Promise<RefreshToken | null> => {
-    // Mock implementation - replace with actual database query
-    return null;
-  },
-};
-
-export async function saveRefreshToken(
-  params: SaveRefreshTokenParams & { transaction?: Transaction }
-): Promise<RefreshToken> {
-  const {
-    userId,
-    jti,
-    expiresAt,
-    deviceId,
-    parentJti = null,
-    ipAddress = null,
-    userAgent = null,
-    transaction,
-  } = params;
-
-  return await RefreshTokenModel.create(
-    {
-      user_id: userId,
-      jti,
-      parent_jti: parentJti,
-      expires_at: expiresAt,
-      device_id: deviceId,
-      ip_address: ipAddress,
-      user_agent: userAgent,
-      used_at: null,
-      revoked_at: null,
-      status: TokenStatus.ACTIVE,
-    },
-    { transaction }
-  );
+export async function saveRefreshToken({
+  userId,
+  jti,
+  expiresAt,
+  deviceId,
+  ipAddress = null,
+  userAgent = null,
+  parentJti = null,
+}: SaveRefreshTokenParams) {
+  return await RefreshToken.create({
+    user_id: userId,
+    jti: jti,
+    session_id: deviceId, // Map deviceId to session_id
+    parent_jti: parentJti,
+    expires_at: expiresAt,
+    device_id: deviceId,
+    ip_address: ipAddress,
+    user_agent: userAgent,
+    revoked: false,
+    status: RefreshTokenStatus.ACTIVE,
+  });
 }
 
 export function decodeRefreshToken(token: string): RefreshJwtPayload {
-  try {
-    const decoded = decodeToken<RefreshJwtPayload>(token);
+  const decoded = decodeToken<RefreshJwtPayload>(token);
 
-    // Ensure correct token type
-    if (decoded.type !== TokenType.REFRESH) {
-      throw new Error("Invalid token type");
-    }
-
-    return decoded;
-  } catch (err) {
-    throw new Error(
-      `Invalid refresh token: ${
-        err instanceof Error ? err.message : String(err)
-      }`
-    );
+  if (decoded.type !== TokenType.REFRESH) {
+    throw new Error("Invalid token type");
   }
+
+  return decoded;
 }
 
 export function validateRefreshToken(
-  tokenRecord: RefreshToken | null,
+  tokenRecord: any,
   userId: string,
-  jti: string,
   ipAddress: string,
   userAgent: string
-): RefreshToken {
+) {
   if (!tokenRecord || tokenRecord.user_id !== userId) {
     throw new Error("Invalid or expired refresh token");
   }
 
-  if (new Date(tokenRecord.expires_at) < new Date()) {
-    throw new Error("Refresh token expired");
+  if (tokenRecord.revoked) {
+    throw new Error("Refresh token revoked");
   }
 
-  if (tokenRecord.status !== TokenStatus.ACTIVE) {
-    throw new Error("Invalid or revoked refresh token");
+  if (new Date(tokenRecord.expires_at) < new Date()) {
+    throw new Error("Refresh token expired");
   }
 
   if (
@@ -270,51 +213,47 @@ export function validateRefreshToken(
 export async function rotateRefreshToken({
   oldJti,
   userId,
-  sessionId,
   deviceId,
   ipAddress,
   userAgent,
 }: {
   oldJti: string;
   userId: string;
-  sessionId: string;
-  deviceId?: string | null;
-  ipAddress?: string | null;
-  userAgent?: string | null;
+  deviceId?: string;
+  ipAddress?: string;
+  userAgent?: string;
 }) {
   const now = new Date();
 
-  // 1. Fetch old token
-  const oldToken = await RefreshTokenModel.findOne({
+  // 1. Find old token
+  const oldToken = await RefreshToken.findOne({
     where: {
       jti: oldJti,
       user_id: userId,
+      revoked: false,
     },
   });
 
-  if (
-    !oldToken ||
-    oldToken.status !== TokenStatus.ACTIVE ||
-    new Date(oldToken.expires_at) < now
-  ) {
+  if (!oldToken) {
     throw new Error("Invalid or expired refresh token");
   }
 
-  // 2. Mark old token as used/revoked
-  oldToken.status = TokenStatus.REVOKED;
-  oldToken.revoked_at = now;
-  oldToken.used_at = now;
-
-  if (oldToken.save) {
-    await oldToken.save();
+  if (new Date(oldToken.expires_at) < now) {
+    throw new Error("Refresh token expired");
   }
 
-  // 3. Create new refresh token (JWT/HMAC payload)
+  // 2. Revoke old token
+  oldToken.revoked = true;
+  oldToken.status = RefreshTokenStatus.REVOKED;
+  oldToken.revoked_at = new Date();
+  await oldToken.save();
+
+  // 3. Create new refresh token
   const newRefresh = createRefreshToken({
     userId,
   });
 
-  // 4. Save new token in DB (linking rotation chain)
+  // 4. Save new token (same session/device)
   await saveRefreshToken({
     userId,
     jti: newRefresh.payload.jti,
@@ -328,7 +267,6 @@ export async function rotateRefreshToken({
   return newRefresh;
 }
 
-// Types for generateNewTokens
 export interface User {
   id: string;
   email: string;
@@ -353,24 +291,23 @@ export async function generateNewTokens({
   oldToken: RefreshToken;
   ipAddress: string;
   userAgent: string;
-}): Promise<LoginResponse> {
-  // 1. Rotate refresh token
+}) {
+  // rotate refresh token
   const newRefresh = await rotateRefreshToken({
     oldJti: oldToken.jti,
     userId: oldToken.user_id,
-    sessionId: oldToken.device_id,
+    deviceId: oldToken.device_id,
     ipAddress,
     userAgent,
   });
 
-  // 2. Create new access token
+  // create access token
   const newAccess = createAccessToken({
-    userId: String(user.id),
+    userId: user.id,
     email: user.email,
     role: user.role,
   });
 
-  // 3. Return login response
   return {
     access_token: newAccess.token,
     access_jti: newAccess.payload.jti,
@@ -380,12 +317,9 @@ export async function generateNewTokens({
   };
 }
 
-export function recreateRefreshToken(
-  refreshToken: RefreshToken
-): RefreshTokenSchema {
+export function recreateRefreshToken(refreshToken: RefreshToken): RefreshTokenSchema {
   const now = Math.floor(Date.now() / 1000);
 
-  // 1. Expiry check
   const expiresAt = Math.floor(
     new Date(refreshToken.expires_at).getTime() / 1000
   );
@@ -394,24 +328,17 @@ export function recreateRefreshToken(
     throw new Error("Refresh token expired");
   }
 
-  // 2. Build payload from DB state
   const payload: RefreshJwtPayload = {
     sub: String(refreshToken.user_id),
     jti: String(refreshToken.jti),
-    iat: Math.floor(
-      new Date(refreshToken.created_at).getTime() / 1000
-    ),
+    iat: Math.floor(new Date(refreshToken.created_at).getTime() / 1000),
     exp: expiresAt,
     iss: CONFIG.issuer,
     aud: CONFIG.audience,
     type: TokenType.REFRESH,
   };
 
-  // 3. Encode using your HMAC-based token system
   const token = encodeToken(payload);
 
-  return {
-    token,
-    payload,
-  };
+  return { token, payload };
 }
