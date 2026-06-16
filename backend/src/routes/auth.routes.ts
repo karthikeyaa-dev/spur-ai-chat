@@ -757,4 +757,276 @@ router.post("/verify-email/resend", AuthController.resendVerificationEmail);
  */
 router.get("/email-verified", AuthController.checkEmailVerified);
 
+/**
+ * @swagger
+ * /api/auth/forgot-password:
+ *   post:
+ *     summary: Request password reset
+ *     description: Send a password reset link to the user's email
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: User's email address
+ *                 example: user@example.com
+ *     responses:
+ *       200:
+ *         description: Reset link sent if account exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: If an account exists, a reset link has been sent.
+ *                 data:
+ *                   type: null
+ *                 error:
+ *                   type: string
+ *                   nullable: true
+ *       400:
+ *         description: Email is required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Email is required
+ *                 data:
+ *                   type: null
+ *                 error:
+ *                   type: string
+ *       500:
+ *         description: Internal server error
+ */
+router.post("/forgot-password", AuthController.forgotPassword);
+
+/**
+ * @swagger
+ * /api/auth/reset-password:
+ *   post:
+ *     summary: Reset password with token
+ *     description: Reset user's password using the token received via email
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *               - password
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 description: Reset token received via email
+ *                 example: "a7f3e8b9c2d4f6a1b3c5e7g9h2j4k6l8"
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 minLength: 8
+ *                 description: New password (at least 8 characters)
+ *                 example: "NewPassword123!@#"
+ *     responses:
+ *       200:
+ *         description: Password reset successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Password reset successful. Please login with your new password.
+ *                 data:
+ *                   type: null
+ *                 error:
+ *                   type: string
+ *                   nullable: true
+ *       400:
+ *         description: Invalid request
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Invalid or expired reset token
+ *                 data:
+ *                   type: null
+ *                 error:
+ *                   type: string
+ *       500:
+ *         description: Internal server error
+ */
+router.post("/reset-password", AuthController.resetPassword);
+
+/**
+ * @swagger
+ * /api/auth/validate-reset-token:
+ *   get:
+ *     summary: Validate password reset token
+ *     description: Check if a password reset token is valid, not expired, and not used
+ *     tags: [Auth]
+ *     parameters:
+ *       - in: query
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Reset token to validate
+ *         example: a7f3e8b9c2d4f6a1b3c5e7g9h2j4k6l8
+ *     responses:
+ *       200:
+ *         description: Token validation result
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Token is valid
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     valid:
+ *                       type: boolean
+ *                       example: true
+ *                 error:
+ *                   type: string
+ *                   nullable: true
+ *       400:
+ *         description: Missing token
+ *       500:
+ *         description: Internal server error
+ */
+router.get("/validate-reset-token", AuthController.validateResetToken);
+
+/**
+ * @swagger
+ * /api/auth/google:
+ *   get:
+ *     summary: Google OAuth login
+ *     tags: [OAuth]
+ *     description: Redirect to Google for authentication
+ *     responses:
+ *       302:
+ *         description: Redirect to Google
+ */
+router.get('/google', OAuthController.googleAuth);
+
+/**
+ * @swagger
+ * /api/auth/google/callback:
+ *   get:
+ *     summary: Google OAuth callback
+ *     tags: [OAuth]
+ *     description: Callback URL for Google OAuth
+ *     responses:
+ *       302:
+ *         description: Redirect to frontend with tokens
+ */
+router.get('/google/callback', OAuthController.googleCallback);
+
+/**
+ * @swagger
+ * /api/auth/github:
+ *   get:
+ *     summary: GitHub OAuth login
+ *     tags: [OAuth]
+ *     description: Redirect to GitHub for authentication
+ *     responses:
+ *       302:
+ *         description: Redirect to GitHub
+ */
+router.get('/github', OAuthController.githubAuth);
+
+/**
+ * @swagger
+ * /api/auth/github/callback:
+ *   get:
+ *     summary: GitHub OAuth callback
+ *     tags: [OAuth]
+ *     description: Callback URL for GitHub OAuth
+ *     responses:
+ *       302:
+ *         description: Redirect to frontend with tokens
+ */
+router.get('/github/callback', OAuthController.githubCallback);
+
+// ==================== Protected OAuth Routes ====================
+
+/**
+ * @swagger
+ * /api/auth/oauth/accounts:
+ *   get:
+ *     summary: Get all OAuth accounts for current user
+ *     tags: [OAuth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: OAuth accounts retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/oauth/accounts', authenticate, OAuthController.getOAuthAccounts);
+
+/**
+ * @swagger
+ * /api/auth/oauth/{provider}:
+ *   delete:
+ *     summary: Disconnect OAuth account
+ *     tags: [OAuth]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: provider
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [google, github, facebook, apple, microsoft]
+ *     responses:
+ *       200:
+ *         description: OAuth account disconnected successfully
+ *       400:
+ *         description: Cannot disconnect (need password)
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: OAuth account not found
+ */
+router.delete('/oauth/:provider', authenticate, OAuthController.disconnectOAuth);
+
 export default router;
