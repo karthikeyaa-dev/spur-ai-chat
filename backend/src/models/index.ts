@@ -5,6 +5,7 @@ import Conversation from "./conversation.model";
 import Message from "./message.model";
 import RefreshToken from "./RefreshToken.model";
 import VerificationToken from "./VerificationToken.model";
+import OAuthAccount from "../OauthAccount.model";
 
 // Determine environment
 const env = process.env.NODE_ENV || "development";
@@ -24,15 +25,16 @@ Conversation.initModel(sequelize);
 Message.initModel(sequelize);
 RefreshToken.initModel(sequelize);
 VerificationToken.initModel(sequelize);
+OAuthAccount.initModel(sequelize);
 
 // Set up associations
-User.associate({ RefreshToken, Conversation, VerificationToken });
+User.associate({ RefreshToken, Conversation, VerificationToken, OAuthAccount });
 Conversation.associate({ User, Message });
 Message.associate({ Conversation });
 RefreshToken.associate({ User });
 VerificationToken.associate({ User });
+OAuthAccount.associate({ User });
 
-// Export
 export {
   sequelize,
   Sequelize,
@@ -41,6 +43,7 @@ export {
   Message,
   RefreshToken,
   VerificationToken,
+  OAuthAccount,
 };
 
 export default sequelize;
