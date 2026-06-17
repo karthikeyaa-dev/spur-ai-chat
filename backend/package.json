@@ -4,11 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon --exec ts-node src/server.ts",
-    "build": "tsc",
+    "dev": "ts-node server.ts",
     "start": "node dist/server.js",
-    "clean": "rm -rf dist",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "create-admin": "ts-node src/scripts/createAdmin.ts",
+    "seed": "npm run create-admin"
   },
   "keywords": [],
   "author": "",
@@ -17,6 +17,7 @@
   "dependencies": {
     "@getbrevo/brevo": "^6.0.1",
     "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
@@ -37,6 +38,7 @@
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/express-session": "^1.19.0",
     "@types/jsonwebtoken": "^9.0.10",

@@ -5,7 +5,8 @@ import {
   DataTypes, 
   Sequelize, 
   CreationOptional, 
-  ForeignKey 
+  ForeignKey,
+  Optional
 } from "sequelize";
 import { uuidv7 } from "uuidv7";
 import User from "./user.model";

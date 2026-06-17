@@ -9,7 +9,7 @@ async function startServer() {
     await sequelize.authenticate();
     console.log('✅ Database connection established successfully.');
     
-    // Sync database (optional - be careful with force:true in production)
+    // Sync database
     await sequelize.sync({ alter: false });
     console.log('✅ Database synchronized successfully.');
     
@@ -26,10 +26,11 @@ async function startServer() {
   }
 }
 
-// Handle graceful shutdown
+// Graceful shutdown
 process.on('SIGINT', async () => {
-  console.log('Shutting down gracefully...');
+  console.log('\n🛑 Shutting down gracefully...');
   await sequelize.close();
+  console.log('👋 Goodbye!');
   process.exit(0);
 });
 

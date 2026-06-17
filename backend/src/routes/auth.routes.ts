@@ -943,7 +943,7 @@ router.get("/validate-reset-token", AuthController.validateResetToken);
  *       302:
  *         description: Redirect to Google
  */
-router.get('/google', OAuthController.googleAuth);
+router.get('/google', AuthController.googleAuth);
 
 /**
  * @swagger
@@ -956,7 +956,7 @@ router.get('/google', OAuthController.googleAuth);
  *       302:
  *         description: Redirect to frontend with tokens
  */
-router.get('/google/callback', OAuthController.googleCallback);
+router.get('/google/callback', AuthController.googleCallback);
 
 /**
  * @swagger
@@ -969,7 +969,7 @@ router.get('/google/callback', OAuthController.googleCallback);
  *       302:
  *         description: Redirect to GitHub
  */
-router.get('/github', OAuthController.githubAuth);
+router.get('/github', AuthController.githubAuth);
 
 /**
  * @swagger
@@ -982,7 +982,7 @@ router.get('/github', OAuthController.githubAuth);
  *       302:
  *         description: Redirect to frontend with tokens
  */
-router.get('/github/callback', OAuthController.githubCallback);
+router.get('/github/callback', AuthController.githubCallback);
 
 // ==================== Protected OAuth Routes ====================
 
@@ -1000,7 +1000,7 @@ router.get('/github/callback', OAuthController.githubCallback);
  *       401:
  *         description: Unauthorized
  */
-router.get('/oauth/accounts', authenticate, OAuthController.getOAuthAccounts);
+router.get('/oauth/accounts', AuthController.getOAuthAccounts);
 
 /**
  * @swagger
@@ -1027,6 +1027,6 @@ router.get('/oauth/accounts', authenticate, OAuthController.getOAuthAccounts);
  *       404:
  *         description: OAuth account not found
  */
-router.delete('/oauth/:provider', authenticate, OAuthController.disconnectOAuth);
+router.delete('/oauth/:provider', AuthController.disconnectOAuth);
 
 export default router;

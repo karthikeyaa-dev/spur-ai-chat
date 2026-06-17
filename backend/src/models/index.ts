@@ -5,7 +5,7 @@ import Conversation from "./conversation.model";
 import Message from "./message.model";
 import RefreshToken from "./RefreshToken.model";
 import VerificationToken from "./VerificationToken.model";
-import OAuthAccount from "../OauthAccount.model";
+import OAuthAccount from "./OauthAccount.model";
 
 // Determine environment
 const env = process.env.NODE_ENV || "development";

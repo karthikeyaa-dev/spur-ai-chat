@@ -1,11 +1,11 @@
-import { Op } from "sequelize";
 import { User, UserRole } from "../models/user.model";
 import { RefreshToken, RefreshTokenStatus } from "../models/RefreshToken.model";
-import { randomUUID } from "crypto";
-import { randomBytes, createHash } from "node:crypto";
-import { createTokenPair, saveRefreshToken, decodeRefreshToken } from "../auth/jwt";
 import { VerificationToken, VerificationTokenType } from "../models/VerificationToken.model";
+import OAuthAccount, { OAuthProvider } from "../models/OauthAccount.model";
+import { randomUUID, randomBytes, createHash } from "crypto";  // ✅ Keep this one
+import { createTokenPair, saveRefreshToken, decodeRefreshToken } from "../auth/jwt";  // ✅ Keep this one
 import { sendEmail } from "../utils/email";
+import { Op } from "sequelize";
 
 type RegisterInput = {
   email: string;
@@ -649,6 +649,152 @@ export class AuthService {
     return {
       valid: true,
       message: "Token is valid",
+    };
+  }
+
+  static async handleOAuthCallback(
+    provider: OAuthProvider,
+    profile: any,
+    accessToken: string,
+    refreshToken: string,
+    ipAddress: string,
+    userAgent: string
+  ) {
+    const email = profile.emails?.[0]?.value;
+    if (!email) {
+      throw new Error('No email provided from OAuth provider');
+    }
+
+    // Check if OAuth account already exists
+    let oauthAccount = await OAuthAccount.findOne({
+      where: {
+        provider,
+        provider_user_id: profile.id,
+      },
+    });
+
+    let user: User | null = null;
+
+    if (oauthAccount) {
+      // OAuth account exists - get the user
+      user = await User.findByPk(oauthAccount.user_id);
+      if (!user) {
+        throw new Error('User not found for OAuth account');
+      }
+
+      // Update last used
+      await oauthAccount.update({ updated_at: new Date() });
+    } else {
+      // Check if user exists with this email
+      user = await User.findOne({ where: { email } });
+
+      if (!user) {
+        // Create new user
+        user = await User.create({
+          email,
+          password: randomUUID(), // Random password
+          role: UserRole.USER,
+          is_active: true,
+          email_verified_at: new Date(),
+        });
+      }
+
+      // Create OAuth account link
+      oauthAccount = await OAuthAccount.create({
+        user_id: user.id,
+        provider,
+        provider_user_id: profile.id,
+        provider_email: email,
+      });
+    }
+
+    // Generate JWT tokens
+    const sessionId = randomUUID();
+    const tokens = createTokenPair(user.id, user.email, user.role);
+
+    await saveRefreshToken({
+      userId: user.id,
+      jti: tokens.refresh.payload.jti,
+      expiresAt: new Date(tokens.refresh.payload.exp * 1000),
+      deviceId: sessionId,
+      ipAddress: ipAddress,
+      userAgent: userAgent,
+    });
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+      },
+      tokens,
+      sessionId,
+      oauthAccount: {
+        provider: oauthAccount.provider,
+        provider_email: oauthAccount.provider_email,
+      },
+    };
+  }
+
+  /**
+   * Get all OAuth accounts for a user
+   */
+  static async getOAuthAccounts(userId: string) {
+    const accounts = await OAuthAccount.findAll({
+      where: { user_id: userId },
+      attributes: ['id', 'provider', 'provider_email', 'created_at'],
+      order: [['created_at', 'DESC']],
+    });
+
+    return accounts;
+  }
+
+  /**
+   * Disconnect OAuth account
+   */
+  static async disconnectOAuth(userId: string, provider: string) {
+    const oauthAccount = await OAuthAccount.findOne({
+      where: {
+        user_id: userId,
+        provider: provider as OAuthProvider,
+      },
+    });
+
+    if (!oauthAccount) {
+      throw new Error("OAuth account not found");
+    }
+
+    // Check if user has password (can login without OAuth)
+    const user = await User.findByPk(userId);
+    if (!user || !user.password || user.password.length < 8) {
+      throw new Error("Cannot disconnect OAuth. Please set a password first.");
+    }
+
+    await oauthAccount.destroy();
+
+    return { message: "OAuth account disconnected successfully" };
+  }
+
+  /**
+   * Get user profile
+   */
+  static async getUserProfile(userId: string) {
+    const user = await User.findByPk(userId, {
+      attributes: ['id', 'email', 'role', 'is_active', 'email_verified_at', 'created_at', 'updated_at'],
+    });
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      is_active: user.is_active,
+      email_verified_at: user.email_verified_at,
+      created_at: user.created_at,
+      updated_at: user.updated_at,
     };
   }
 }

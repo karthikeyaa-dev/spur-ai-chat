@@ -2,6 +2,11 @@ import { Request, Response, NextFunction } from "express";
 import { AuthService } from "../services/auth.service";
 import { registerSchema, loginSchema } from "../schemas/user.schema";
 import { UserService } from "../services/user.service";
+import OAuthAccount, { OAuthProvider } from "../models/OauthAccount.model";
+import { User } from "../models/user.model";
+import { randomUUID } from "crypto";
+import { createTokenPair, saveRefreshToken } from "../auth/jwt";
+import passport from 'passport';
 
 export class AuthController {
   static async register(req: Request, res: Response) {
@@ -507,25 +512,75 @@ export class AuthController {
 
   /**
    * GET /api/auth/google/callback
-   * Google OAuth callback
+   * Google OAuth callback - Returns JSON directly
    */
   static googleCallback(req: Request, res: Response, next: any) {
     passport.authenticate('google', {
       session: false,
-      failureRedirect: `${process.env.FRONTEND_URL}/login?error=google_auth_failed`,
     }, async (err: any, user: any, info: any) => {
-      if (err || !user) {
-        return res.redirect(`${process.env.FRONTEND_URL}/login?error=${err?.message || 'google_auth_failed'}`);
+      // Handle errors
+      if (err) {
+        console.error('Google OAuth error:', err);
+        return res.status(400).json({
+          success: false,
+          message: 'Google OAuth authentication failed',
+          error: err.message || 'Authentication error',
+        });
       }
 
-      return OAuthController.handleOAuthCallback(
-        req,
-        res,
-        OAuthProvider.GOOGLE,
-        user,
-        user.accessToken,
-        user.refreshToken
-      );
+      if (!user) {
+        console.error('No user returned from Google');
+        return res.status(400).json({
+          success: false,
+          message: 'Google OAuth authentication failed',
+          error: 'No user data received from Google',
+        });
+      }
+
+      try {
+        // Get the tokens from the user object or info
+        const accessToken = user.accessToken || info?.accessToken;
+        const refreshToken = user.refreshToken || info?.refreshToken;
+
+        const result = await AuthService.handleOAuthCallback(
+          OAuthProvider.GOOGLE,
+          user,
+          accessToken,
+          refreshToken,
+          req.ip || '',
+          req.headers['user-agent'] || ''
+        );
+
+        // Return JSON directly - NO REDIRECT
+        return res.status(200).json({
+          success: true,
+          message: "Google OAuth login successful",
+          data: {
+            user: {
+              id: result.user.id,
+              email: result.user.email,
+              role: result.user.role,
+            },
+            tokens: {
+              access_token: result.tokens.access.token,
+              refresh_token: result.tokens.refresh.token,
+              session_id: result.sessionId,
+              token_type: "bearer",
+            },
+            oauth: {
+              provider: result.oauthAccount.provider,
+              provider_email: result.oauthAccount.provider_email,
+            },
+          },
+        });
+      } catch (error: any) {
+        console.error('OAuth callback error:', error);
+        return res.status(500).json({
+          success: false,
+          message: 'OAuth authentication failed',
+          error: error.message || 'Internal server error',
+        });
+      }
     })(req, res, next);
   }
 
@@ -542,76 +597,76 @@ export class AuthController {
 
   /**
    * GET /api/auth/github/callback
-   * GitHub OAuth callback
+   * GitHub OAuth callback - Returns JSON directly
    */
   static githubCallback(req: Request, res: Response, next: any) {
     passport.authenticate('github', {
       session: false,
-      failureRedirect: `${process.env.FRONTEND_URL}/login?error=github_auth_failed`,
     }, async (err: any, user: any, info: any) => {
-      if (err || !user) {
-        return res.redirect(`${process.env.FRONTEND_URL}/login?error=${err?.message || 'github_auth_failed'}`);
+      // Handle errors
+      if (err) {
+        console.error('GitHub OAuth error:', err);
+        return res.status(400).json({
+          success: false,
+          message: 'GitHub OAuth authentication failed',
+          error: err.message || 'Authentication error',
+        });
       }
 
-      return OAuthController.handleOAuthCallback(
-        req,
-        res,
-        OAuthProvider.GITHUB,
-        user,
-        user.accessToken,
-        user.refreshToken
-      );
+      if (!user) {
+        console.error('No user returned from GitHub');
+        return res.status(400).json({
+          success: false,
+          message: 'GitHub OAuth authentication failed',
+          error: 'No user data received from GitHub',
+        });
+      }
+
+      try {
+        // Get the tokens from the user object
+        const accessToken = user.accessToken || info?.accessToken;
+        const refreshToken = user.refreshToken || info?.refreshToken;
+
+        const result = await AuthService.handleOAuthCallback(
+          OAuthProvider.GITHUB,
+          user,
+          accessToken,
+          refreshToken,
+          req.ip || '',
+          req.headers['user-agent'] || ''
+        );
+
+        // Return JSON directly - NO REDIRECT
+        return res.status(200).json({
+          success: true,
+          message: "GitHub OAuth login successful",
+          data: {
+            user: {
+              id: result.user.id,
+              email: result.user.email,
+              role: result.user.role,
+            },
+            tokens: {
+              access_token: result.tokens.access.token,
+              refresh_token: result.tokens.refresh.token,
+              session_id: result.sessionId,
+              token_type: "bearer",
+            },
+            oauth: {
+              provider: result.oauthAccount.provider,
+              provider_email: result.oauthAccount.provider_email,
+            },
+          },
+        });
+      } catch (error: any) {
+        console.error('OAuth callback error:', error);
+        return res.status(500).json({
+          success: false,
+          message: 'OAuth authentication failed',
+          error: error.message || 'Internal server error',
+        });
+      }
     })(req, res, next);
-  }
-
-  /**
-   * Handle OAuth callback - Create or link OAuth account
-   */
-  static async handleOAuthCallback(
-    req: Request,
-    res: Response,
-    provider: OAuthProvider,
-    user: any,
-    accessToken: string,
-    refreshToken: string
-  ) {
-    try {
-      // Generate JWT tokens for your app
-      const sessionId = randomUUID();
-      const tokens = createTokenPair(user.id, user.email, user.role);
-
-      await saveRefreshToken({
-        userId: user.id,
-        jti: tokens.refresh.payload.jti,
-        expiresAt: new Date(tokens.refresh.payload.exp * 1000),
-        deviceId: sessionId,
-        ipAddress: req.ip || '',
-        userAgent: req.headers['user-agent'] || '',
-      });
-
-      // Get OAuth account info
-      const oauthAccount = await OAuthAccount.findOne({
-        where: {
-          user_id: user.id,
-          provider: provider,
-        },
-      });
-
-      // Redirect to frontend with tokens
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-      const redirectUrl = `${frontendUrl}/oauth-callback?access_token=${tokens.access.token}&refresh_token=${tokens.refresh.token}&session_id=${sessionId}&user=${encodeURIComponent(JSON.stringify({
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        provider: oauthAccount?.provider || provider,
-        provider_email: oauthAccount?.provider_email || user.email,
-      }))}`;
-
-      return res.redirect(redirectUrl);
-    } catch (error) {
-      console.error('OAuth callback error:', error);
-      return res.redirect(`${process.env.FRONTEND_URL}/login?error=oauth_auth_failed`);
-    }
   }
 
   /**
@@ -631,11 +686,7 @@ export class AuthController {
         });
       }
 
-      const accounts = await OAuthAccount.findAll({
-        where: { user_id: userId },
-        attributes: ['id', 'provider', 'provider_email', 'created_at'],
-        order: [['created_at', 'DESC']],
-      });
+      const accounts = await AuthService.getOAuthAccounts(userId);
 
       return res.status(200).json({
         success: true,
@@ -661,7 +712,7 @@ export class AuthController {
   static async disconnectOAuth(req: Request, res: Response) {
     try {
       const userId = (req as any).user?.id;
-      const { provider } = req.params;
+      const provider = req.params.provider as string;
 
       if (!userId) {
         return res.status(401).json({
@@ -672,43 +723,44 @@ export class AuthController {
         });
       }
 
-      const oauthAccount = await OAuthAccount.findOne({
-        where: {
-          user_id: userId,
-          provider: provider as OAuthProvider,
-        },
-      });
-
-      if (!oauthAccount) {
-        return res.status(404).json({
-          success: false,
-          message: "OAuth account not found",
-          data: null,
-          error: "OAuth account not found",
-        });
-      }
-
-      // Check if user has password (can login without OAuth)
-      const user = await User.findByPk(userId);
-      if (!user || !user.password || user.password.length < 8) {
+      if (!provider) {
         return res.status(400).json({
           success: false,
-          message: "Cannot disconnect OAuth. Please set a password first.",
+          message: "Provider is required",
           data: null,
-          error: "Password required",
+          error: "Missing provider",
         });
       }
 
-      await oauthAccount.destroy();
+      const result = await AuthService.disconnectOAuth(userId, provider);
 
       return res.status(200).json({
         success: true,
-        message: `OAuth account disconnected successfully`,
+        message: result.message,
         data: null,
         error: null,
       });
     } catch (error: any) {
       console.error('Disconnect OAuth error:', error);
+      
+      if (error.message === "OAuth account not found") {
+        return res.status(404).json({
+          success: false,
+          message: error.message,
+          data: null,
+          error: error.message,
+        });
+      }
+
+      if (error.message === "Cannot disconnect OAuth. Please set a password first.") {
+        return res.status(400).json({
+          success: false,
+          message: error.message,
+          data: null,
+          error: error.message,
+        });
+      }
+
       return res.status(500).json({
         success: false,
         message: error.message || "Failed to disconnect OAuth account",

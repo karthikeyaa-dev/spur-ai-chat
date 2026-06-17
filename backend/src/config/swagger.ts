@@ -22,11 +22,45 @@ export const setupSwagger = (app: Application) => {
           description: "Development server",
         },
       ],
+      // ==================== ADD THIS SECTION ====================
+      components: {
+        securitySchemes: {
+          bearerAuth: {
+            type: "http",
+            scheme: "bearer",
+            bearerFormat: "JWT",
+            description: 'Enter your JWT token (without the "Bearer " prefix)',
+          },
+        },
+      },
+      security: [
+        {
+          bearerAuth: [],
+        },
+      ],
+      // ========================================================
     },
     apis: [path.join(__dirname, "../routes/*.ts")],
   };
 
   const specs = swaggerJsdoc(options);
-  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));
-  console.log("Swagger docs available at /api-docs");
+  
+  // ==================== UPDATED SWAGGER UI OPTIONS ====================
+  const swaggerUiOptions = {
+    swaggerOptions: {
+      persistAuthorization: true, // Keeps token across page reloads
+      docExpansion: "none",
+      operationsSorter: "method",
+      tagsSorter: "alpha",
+    },
+    customCss: ".swagger-ui .topbar { display: none }",
+  };
+
+  app.use(
+    "/api-docs",
+    swaggerUi.serve,
+    swaggerUi.setup(specs, swaggerUiOptions)
+  );
+  
+  console.log("📚 Swagger docs available at /api-docs");
 };
