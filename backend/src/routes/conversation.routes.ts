@@ -1,94 +1,44 @@
-import { Router } from "express";
-import {
-  createConversation,
-  createNewConversation,
-  getConversation,
-  getAllConversations,
-  deleteConversation,
-} from "../controllers/conversation.controller";
+import { Router } from 'express';
+import { ConversationController } from '../controllers/conversation.controller';
+import { authOptional } from '../middleware/auth';
 
 const router = Router();
 
-/**
- * @swagger
- * /api/conversation:
- *   post:
- *     summary: Get or create an active conversation
- *     description: Returns existing active conversation or creates a new one for the session
- *     tags: [Conversations]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - session_id
- *             properties:
- *               session_id:
- *                 type: string
- *                 description: Unique session identifier
- *                 example: session_123456
- *     responses:
- *       200:
- *         description: Conversation ready
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Conversation ready
- *                 data:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: string
- *                     session_id:
- *                       type: string
- *                     status:
- *                       type: string
- *                       enum: [active, closed]
- *                     created_at:
- *                       type: string
- *                       format: date-time
- *                     updated_at:
- *                       type: string
- *                       format: date-time
- *       400:
- *         description: session_id is required
- *       500:
- *         description: Server error
- */
-router.post("/conversation", createConversation);
+// Apply auth middleware (optional - handles both guest and authenticated)
+router.use(authOptional);
 
 /**
  * @swagger
- * /api/conversation/new:
+ * tags:
+ *   name: Conversations
+ *   description: Conversation management endpoints (supports both guest and authenticated users)
+ */
+
+/**
+ * @swagger
+ * /api/conversations:
  *   post:
  *     summary: Create a new conversation
- *     description: Closes any active conversation and creates a new one for the session
  *     tags: [Conversations]
+ *     description: Creates a new conversation for either a guest or authenticated user
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - session_id
  *             properties:
  *               session_id:
  *                 type: string
- *                 description: Unique session identifier
- *                 example: session_123456
+ *                 description: Required for guest users
+ *                 example: guest-session-123
+ *               title:
+ *                 type: string
+ *                 description: Optional conversation title
+ *                 example: My New Chat
  *     responses:
- *       200:
- *         description: New conversation created
+ *       201:
+ *         description: Conversation created successfully
  *         content:
  *           application/json:
  *             schema:
@@ -99,47 +49,24 @@ router.post("/conversation", createConversation);
  *                   example: true
  *                 message:
  *                   type: string
- *                   example: New conversation created
+ *                   example: Conversation created successfully
  *                 data:
  *                   type: object
  *                   properties:
- *                     id:
+ *                     storage:
  *                       type: string
- *                     session_id:
- *                       type: string
- *                     status:
- *                       type: string
- *                       enum: [active, closed]
- *                     created_at:
- *                       type: string
- *                       format: date-time
- *                     updated_at:
- *                       type: string
- *                       format: date-time
+ *                       enum: [db, redis]
+ *                       example: db
+ *                     conversation:
+ *                       type: object
+ *                     isGuest:
+ *                       type: boolean
+ *                       example: false
+ *                 error:
+ *                   type: string
+ *                   nullable: true
  *       400:
- *         description: session_id is required
- *       500:
- *         description: Server error
- */
-router.post("/conversation/new", createNewConversation);
-
-/**
- * @swagger
- * /api/conversation/{conversation_id}:
- *   get:
- *     summary: Get a specific conversation by ID
- *     tags: [Conversations]
- *     parameters:
- *       - in: path
- *         name: conversation_id
- *         required: true
- *         schema:
- *           type: string
- *         description: The conversation ID
- *         example: conv_1234567890_abc123
- *     responses:
- *       200:
- *         description: Conversation retrieved successfully
+ *         description: Missing session_id for guest users
  *         content:
  *           application/json:
  *             schema:
@@ -147,49 +74,34 @@ router.post("/conversation/new", createNewConversation);
  *               properties:
  *                 success:
  *                   type: boolean
- *                   example: true
+ *                   example: false
  *                 message:
  *                   type: string
- *                   example: Conversation retrieved successfully
+ *                   example: session_id is required for guest users
  *                 data:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: string
- *                     session_id:
- *                       type: string
- *                     status:
- *                       type: string
- *                       enum: [active, closed]
- *                     created_at:
- *                       type: string
- *                       format: date-time
- *                     updated_at:
- *                       type: string
- *                       format: date-time
- *       400:
- *         description: conversation_id is required
- *       404:
- *         description: Conversation not found
+ *                   type: null
+ *                 error:
+ *                   type: string
  *       500:
- *         description: Server error
+ *         description: Internal server error
  */
-router.get("/conversation/:conversation_id", getConversation);
+router.post('/', ConversationController.createConversation);
 
 /**
  * @swagger
- * /api/conversations/{session_id}:
+ * /api/conversations:
  *   get:
- *     summary: Get all conversations for a session
+ *     summary: List all conversations
  *     tags: [Conversations]
+ *     description: Retrieves all conversations for the authenticated user or guest (using session_id)
  *     parameters:
- *       - in: path
+ *       - in: query
  *         name: session_id
- *         required: true
  *         schema:
  *           type: string
- *         description: The session ID
- *         example: session_123456
+ *         required: false
+ *         description: Required for guest users
+ *         example: guest-session-123
  *     responses:
  *       200:
  *         description: Conversations retrieved successfully
@@ -211,44 +123,153 @@ router.get("/conversation/:conversation_id", getConversation);
  *                     properties:
  *                       id:
  *                         type: string
- *                       session_id:
+ *                         example: conv_123
+ *                       title:
  *                         type: string
+ *                         example: My New Chat
  *                       status:
  *                         type: string
  *                         enum: [active, closed]
+ *                         example: active
  *                       created_at:
  *                         type: string
  *                         format: date-time
  *                       updated_at:
  *                         type: string
  *                         format: date-time
+ *                       last_message:
+ *                         type: string
+ *                         nullable: true
+ *                         example: Hello, how can I help?
+ *                       last_message_role:
+ *                         type: string
+ *                         nullable: true
+ *                         enum: [user, assistant]
+ *                       message_count:
+ *                         type: integer
+ *                         example: 5
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                       example: 10
+ *                 is_guest:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *                   nullable: true
  *       400:
- *         description: session_id is required
+ *         description: Missing session_id for guest users
  *       500:
- *         description: Server error
+ *         description: Internal server error
  */
-router.get("/conversations/:session_id", getAllConversations);
+router.get('/', ConversationController.listConversations);
 
 /**
  * @swagger
- * /api/conversation/{conversation_id}:
- *   delete:
- *     summary: Delete a conversation
+ * /api/conversations/{id}:
+ *   get:
+ *     summary: Get a single conversation with messages
  *     tags: [Conversations]
+ *     description: Retrieves a specific conversation with all its messages
  *     parameters:
  *       - in: path
- *         name: conversation_id
+ *         name: id
  *         required: true
  *         schema:
  *           type: string
- *         description: The conversation ID to delete
- *         example: conv_1234567890_abc123
+ *         description: Conversation ID
+ *         example: conv_123
  *       - in: query
  *         name: session_id
  *         schema:
  *           type: string
- *         description: Optional session ID for verification
- *         example: session_123456
+ *         required: false
+ *         description: Required for guest users
+ *         example: guest-session-123
+ *     responses:
+ *       200:
+ *         description: Conversation retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Conversation retrieved successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     title:
+ *                       type: string
+ *                     status:
+ *                       type: string
+ *                     created_at:
+ *                       type: string
+ *                       format: date-time
+ *                     updated_at:
+ *                       type: string
+ *                       format: date-time
+ *                     messages:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           role:
+ *                             type: string
+ *                             enum: [user, assistant, system]
+ *                           content:
+ *                             type: string
+ *                           created_at:
+ *                             type: string
+ *                             format: date-time
+ *                 is_guest:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *                   nullable: true
+ *       400:
+ *         description: Missing session_id for guest users
+ *       404:
+ *         description: Conversation not found
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/:id', ConversationController.getConversation);
+
+/**
+ * @swagger
+ * /api/conversations/{id}:
+ *   delete:
+ *     summary: Delete a conversation
+ *     tags: [Conversations]
+ *     description: Permanently deletes a conversation and all its messages
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Conversation ID
+ *         example: conv_123
+ *       - in: query
+ *         name: session_id
+ *         schema:
+ *           type: string
+ *         required: false
+ *         description: Required for guest users
+ *         example: guest-session-123
  *     responses:
  *       200:
  *         description: Conversation deleted successfully
@@ -264,18 +285,147 @@ router.get("/conversations/:session_id", getAllConversations);
  *                   type: string
  *                   example: Conversation deleted successfully
  *                 data:
+ *                   type: null
+ *                 error:
+ *                   type: string
+ *                   nullable: true
+ *       400:
+ *         description: Missing session_id for guest users
+ *       404:
+ *         description: Conversation not found
+ *       500:
+ *         description: Internal server error
+ */
+router.delete('/:id', ConversationController.deleteConversation);
+
+/**
+ * @swagger
+ * /api/conversations/{id}/title:
+ *   patch:
+ *     summary: Update conversation title
+ *     tags: [Conversations]
+ *     description: Updates the title of a conversation
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Conversation ID
+ *         example: conv_123
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - title
+ *             properties:
+ *               title:
+ *                 type: string
+ *                 description: New title for the conversation
+ *                 example: Updated Chat Title
+ *               session_id:
+ *                 type: string
+ *                 description: Required for guest users
+ *                 example: guest-session-123
+ *     responses:
+ *       200:
+ *         description: Title updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Title updated successfully
+ *                 data:
  *                   type: object
  *                   properties:
  *                     id:
  *                       type: string
- *                     deleted:
- *                       type: boolean
- *                       example: true
+ *                     title:
+ *                       type: string
+ *                     status:
+ *                       type: string
+ *                     created_at:
+ *                       type: string
+ *                       format: date-time
+ *                     updated_at:
+ *                       type: string
+ *                       format: date-time
+ *                 is_guest:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *                   nullable: true
  *       400:
- *         description: Error deleting conversation
+ *         description: Missing title or session_id
  *       404:
  *         description: Conversation not found
+ *       500:
+ *         description: Internal server error
  */
-router.delete("/conversation/:conversation_id", deleteConversation);
+router.patch('/:id/title', ConversationController.updateTitle);
+
+/**
+ * @swagger
+ * /api/conversations/{id}/close:
+ *   post:
+ *     summary: Close a conversation
+ *     tags: [Conversations]
+ *     description: Marks a conversation as closed (no longer active)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Conversation ID
+ *         example: conv_123
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               session_id:
+ *                 type: string
+ *                 description: Required for guest users
+ *                 example: guest-session-123
+ *     responses:
+ *       200:
+ *         description: Conversation closed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Conversation closed successfully
+ *                 data:
+ *                   type: null
+ *                 error:
+ *                   type: string
+ *                   nullable: true
+ *       400:
+ *         description: Missing session_id for guest users
+ *       404:
+ *         description: Conversation not found
+ *       500:
+ *         description: Internal server error
+ */
+router.post('/:id/close', ConversationController.closeConversation);
 
 export default router;

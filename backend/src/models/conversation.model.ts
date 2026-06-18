@@ -21,8 +21,8 @@ export enum ConversationStatus {
 // Define attributes for Conversation model
 export interface ConversationAttributes {
   id: string;
-  session_id: string;
-  user_id: string | null;
+  user_id: string;  // Made required - always links to a user
+  title: string | null;
   status: ConversationStatus;
   created_at: CreationOptional<Date>;
   updated_at: CreationOptional<Date>;
@@ -30,7 +30,7 @@ export interface ConversationAttributes {
 
 // Define creation attributes
 export interface ConversationCreationAttributes
-  extends Optional<ConversationAttributes, "id" | "status" | "created_at" | "updated_at"> {}
+  extends Optional<ConversationAttributes, "id" | "title" | "status" | "created_at" | "updated_at"> {}
 
 // Define the Conversation class
 export class Conversation
@@ -38,8 +38,8 @@ export class Conversation
   implements ConversationAttributes
 {
   declare id: CreationOptional<string>;
-  declare session_id: string;
-  declare user_id: string | null;
+  declare user_id: ForeignKey<string>;  // Required - no longer nullable
+  declare title: string | null;
   declare status: CreationOptional<ConversationStatus>;
   declare created_at: CreationOptional<Date>;
   declare updated_at: CreationOptional<Date>;
@@ -56,17 +56,18 @@ export class Conversation
           primaryKey: true,
           defaultValue: (): string => uuidv7(),
         },
-        session_id: {
-          type: DataTypes.UUID,
-          allowNull: false,
-        },
         user_id: {
           type: DataTypes.UUID,
-          allowNull: true,
+          allowNull: false,  // Required
           references: {
             model: "users",
             key: "id",
           },
+          onDelete: "CASCADE",  // Delete conversations when user is deleted
+        },
+        title: {
+          type: DataTypes.STRING(255),
+          allowNull: true,
         },
         status: {
           type: DataTypes.ENUM(...Object.values(ConversationStatus)),
@@ -92,10 +93,6 @@ export class Conversation
         updatedAt: "updated_at",
         indexes: [
           {
-            fields: ["session_id"],
-            name: "conversations_session_id_idx",
-          },
-          {
             fields: ["user_id"],
             name: "conversations_user_id_idx",
           },
@@ -106,6 +103,10 @@ export class Conversation
           {
             fields: ["created_at"],
             name: "conversations_created_at_idx",
+          },
+          {
+            fields: ["user_id", "status"],
+            name: "conversations_user_id_status_idx",
           },
         ],
         hooks: {
@@ -126,7 +127,7 @@ export class Conversation
       Conversation.belongsTo(User, {
         foreignKey: "user_id",
         as: "user",
-        onDelete: "SET NULL",
+        onDelete: "CASCADE",
       });
     }
 

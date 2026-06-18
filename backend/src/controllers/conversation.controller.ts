@@ -1,175 +1,310 @@
-import { Request, Response } from "express";
-import conversationService from "../services/conversation.service";
-import {
-  CreateConversationRequest,
-  CreateConversationResponse,
-  CreateNewConversationResponse,
-  GetConversationResponse,
-  GetAllConversationsResponse,
-  DeleteConversationResponse,
-} from "../types/conversation.types";
+import { Request, Response } from 'express';
+import { conversationService } from '../services/conversation.service';
 
-export const createConversation = async (
-  req: Request<{}, {}, CreateConversationRequest>, 
-  res: Response<CreateConversationResponse>
-): Promise<Response<CreateConversationResponse>> => {
-  try {
-    const { session_id } = req.body;
+export class ConversationController {
+  /**
+   * POST /api/conversations
+   * Create a new conversation
+   */
+  static async createConversation(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?.id;
+      const { session_id, title } = req.body;
 
-    if (!session_id) {
-      return res.status(400).json({
+      const principal = userId
+        ? { type: 'user' as const, userId }
+        : { type: 'guest' as const, sessionId: session_id };
+
+      if (!userId && !session_id) {
+        return res.status(400).json({
+          success: false,
+          message: 'session_id is required for guest users',
+          data: null,
+          error: 'Missing session_id',
+        });
+      }
+
+      const result = await conversationService.createConversation(principal, title);
+
+      return res.status(201).json({
+        success: true,
+        message: 'Conversation created successfully',
+        data: result,
+        error: null,
+      });
+    } catch (error: any) {
+      console.error('Create conversation error:', error);
+      return res.status(500).json({
         success: false,
-        message: "session_id is required",
+        message: error.message || 'Failed to create conversation',
+        data: null,
+        error: error.message || 'Internal server error',
       });
     }
-
-    const conversation = await conversationService.getOrCreateConversation({
-      session_id,
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: "Conversation ready",
-      data: conversation,
-    });
-  } catch (error: any) {
-    console.error("Controller error:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Error creating conversation",
-    });
   }
-};
 
-export const createNewConversation = async (
-  req: Request<{}, {}, CreateConversationRequest>, 
-  res: Response<CreateNewConversationResponse>
-): Promise<Response<CreateNewConversationResponse>> => {
-  try {
-    const { session_id } = req.body;
+  /**
+   * GET /api/conversations
+   * List all conversations (handles both guest and authenticated)
+   */
+  static async listConversations(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?.id;
+      const { session_id } = req.query;
 
-    if (!session_id) {
-      return res.status(400).json({
+      const principal = userId
+        ? { type: 'user' as const, userId }
+        : { type: 'guest' as const, sessionId: session_id as string };
+
+      if (!userId && !session_id) {
+        return res.status(400).json({
+          success: false,
+          message: 'session_id is required for guest users',
+          data: null,
+          error: 'Missing session_id',
+        });
+      }
+
+      const result = await conversationService.listConversations(principal);
+
+      return res.status(200).json({
+        success: true,
+        message: 'Conversations retrieved successfully',
+        data: result.conversations,
+        pagination: {
+          total: result.total,
+        },
+        is_guest: result.isGuest,
+        error: null,
+      });
+    } catch (error: any) {
+      console.error('List conversations error:', error);
+      return res.status(500).json({
         success: false,
-        message: "session_id is required",
+        message: error.message || 'Failed to list conversations',
+        data: null,
+        error: error.message || 'Internal server error',
       });
     }
-
-    const conversation = await conversationService.createNewConversation({
-      session_id,
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: "New conversation created",
-      data: conversation,
-    });
-  } catch (error: any) {
-    console.error("Controller error:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Error creating new conversation",
-    });
   }
-};
 
-export const getConversation = async (
-  req: Request<{ conversation_id: string }>, 
-  res: Response<GetConversationResponse>
-): Promise<Response<GetConversationResponse>> => {
-  try {
-    const { conversation_id } = req.params;
+  /**
+   * GET /api/conversations/:id
+   * Get a single conversation with messages (handles both guest and authenticated)
+   */
+  static async getConversation(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?.id;
+      const id = req.params.id as string; // ✅ Cast to string
+      const { session_id } = req.query;
 
-    if (!conversation_id) {
-      return res.status(400).json({
+      const principal = userId
+        ? { type: 'user' as const, userId }
+        : { type: 'guest' as const, sessionId: session_id as string };
+
+      if (!userId && !session_id) {
+        return res.status(400).json({
+          success: false,
+          message: 'session_id is required for guest users',
+          data: null,
+          error: 'Missing session_id',
+        });
+      }
+
+      const result = await conversationService.getConversation(principal, id);
+
+      if (!result) {
+        return res.status(404).json({
+          success: false,
+          message: 'Conversation not found',
+          data: null,
+          error: 'Conversation not found',
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Conversation retrieved successfully',
+        data: result.conversation,
+        is_guest: result.isGuest,
+        error: null,
+      });
+    } catch (error: any) {
+      console.error('Get conversation error:', error);
+      return res.status(500).json({
         success: false,
-        message: "conversation_id is required",
+        message: error.message || 'Failed to get conversation',
+        data: null,
+        error: error.message || 'Internal server error',
       });
     }
-
-    const conversation = await conversationService.getConversation(conversation_id);
-
-    if (!conversation) {
-      return res.status(404).json({
-        success: false,
-        message: "Conversation not found",
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: "Conversation retrieved successfully",
-      data: conversation,
-    });
-  } catch (error: any) {
-    console.error("Controller error:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Error getting conversation",
-    });
   }
-};
 
-export const getAllConversations = async (
-  req: Request<{ session_id: string }>, 
-  res: Response<GetAllConversationsResponse>
-): Promise<Response<GetAllConversationsResponse>> => {
-  try {
-    const { session_id } = req.params;
+  /**
+   * DELETE /api/conversations/:id
+   * Delete a conversation (handles both guest and authenticated)
+   */
+  static async deleteConversation(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?.id;
+      const id = req.params.id as string; // ✅ Cast to string
+      const { session_id } = req.query;
 
-    if (!session_id) {
-      return res.status(400).json({
+      const principal = userId
+        ? { type: 'user' as const, userId }
+        : { type: 'guest' as const, sessionId: session_id as string };
+
+      if (!userId && !session_id) {
+        return res.status(400).json({
+          success: false,
+          message: 'session_id is required for guest users',
+          data: null,
+          error: 'Missing session_id',
+        });
+      }
+
+      const result = await conversationService.deleteConversation(principal, id);
+
+      if (!result.deleted) {
+        return res.status(404).json({
+          success: false,
+          message: 'Conversation not found',
+          data: null,
+          error: 'Conversation not found',
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Conversation deleted successfully',
+        data: null,
+        error: null,
+      });
+    } catch (error: any) {
+      console.error('Delete conversation error:', error);
+      return res.status(500).json({
         success: false,
-        message: "session_id is required",
+        message: error.message || 'Failed to delete conversation',
+        data: null,
+        error: error.message || 'Internal server error',
       });
     }
-
-    const conversations = await conversationService.getAllConversations(session_id);
-
-    return res.status(200).json({
-      success: true,
-      message: "Conversations retrieved successfully",
-      data: conversations,
-    });
-  } catch (error: any) {
-    console.error("Controller error:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Error getting conversations",
-    });
   }
-};
 
-export const deleteConversation = async (
-  req: Request<{ conversation_id: string }, {}, {}, { session_id?: string }>, 
-  res: Response<DeleteConversationResponse>
-): Promise<Response<DeleteConversationResponse>> => {
-  try {
-    const { conversation_id } = req.params;
-    const { session_id } = req.query;
+  /**
+   * PATCH /api/conversations/:id/title
+   * Update conversation title (handles both guest and authenticated)
+   */
+  static async updateTitle(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?.id;
+      const id = req.params.id as string; // ✅ Cast to string
+      const { title, session_id } = req.body;
 
-    const result = await conversationService.deleteConversation(
-      conversation_id,
-      session_id
-    );
+      const principal = userId
+        ? { type: 'user' as const, userId }
+        : { type: 'guest' as const, sessionId: session_id };
 
-    if (!result) {
-      return res.status(404).json({
+      if (!userId && !session_id) {
+        return res.status(400).json({
+          success: false,
+          message: 'session_id is required for guest users',
+          data: null,
+          error: 'Missing session_id',
+        });
+      }
+
+      if (!title) {
+        return res.status(400).json({
+          success: false,
+          message: 'Title is required',
+          data: null,
+          error: 'Missing title',
+        });
+      }
+
+      const result = await conversationService.updateConversationTitle(
+        principal,
+        id,
+        title
+      );
+
+      if (!result) {
+        return res.status(404).json({
+          success: false,
+          message: 'Conversation not found',
+          data: null,
+          error: 'Conversation not found',
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Title updated successfully',
+        data: result.conversation,
+        is_guest: result.isGuest,
+        error: null,
+      });
+    } catch (error: any) {
+      console.error('Update title error:', error);
+      return res.status(500).json({
         success: false,
-        message: "Conversation not found",
+        message: error.message || 'Failed to update title',
+        data: null,
+        error: error.message || 'Internal server error',
       });
     }
-
-    return res.status(200).json({
-      success: true,
-      message: "Conversation deleted successfully",
-      data: result,
-    });
-  } catch (error: any) {
-    console.error("Controller error:", error);
-    return res.status(400).json({
-      success: false,
-      message: error.message || "Error deleting conversation",
-    });
   }
-};
+
+  /**
+   * POST /api/conversations/:id/close
+   * Close a conversation (handles both guest and authenticated)
+   */
+  static async closeConversation(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?.id;
+      const id = req.params.id as string; // ✅ Cast to string
+      const { session_id } = req.body;
+
+      const principal = userId
+        ? { type: 'user' as const, userId }
+        : { type: 'guest' as const, sessionId: session_id };
+
+      if (!userId && !session_id) {
+        return res.status(400).json({
+          success: false,
+          message: 'session_id is required for guest users',
+          data: null,
+          error: 'Missing session_id',
+        });
+      }
+
+      const result = await conversationService.closeConversation(principal, id);
+
+      if (!result.closed) {
+        return res.status(404).json({
+          success: false,
+          message: 'Conversation not found',
+          data: null,
+          error: 'Conversation not found',
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Conversation closed successfully',
+        data: null,
+        error: null,
+      });
+    } catch (error: any) {
+      console.error('Close conversation error:', error);
+      return res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to close conversation',
+        data: null,
+        error: error.message || 'Internal server error',
+      });
+    }
+  }
+
+}

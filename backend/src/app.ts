@@ -9,7 +9,8 @@ import { setupSwagger } from './config/swagger';
 import conversationRoutes from './routes/conversation.routes';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
-import { auth } from './middleware/auth';
+import messageRoutes from './routes/message.routes';
+import { authOptional, authRequired } from './middleware/auth';
 import { authorize } from './middleware/authorize';
 
 // Import Passport configuration
@@ -69,14 +70,16 @@ app.use(passport.session());
 setupSwagger(app);
 
 // ==================== Routes ====================
-// Public auth routes (register, login, refresh, verify-email, etc.)
+// 2. Public auth routes (register, login, refresh, verify-email, etc.)
 app.use('/api/auth', authRoutes);
 
-// Protected conversation routes (require authentication)
-app.use('/api', auth, conversationRoutes);
+// 3. Conversation routes - with OPTIONAL auth (guest + authenticated)
+app.use('/api/conversations', authOptional, conversationRoutes);
 
-// User routes - ADMIN ONLY
-app.use('/api', auth, authorize('admin'), userRoutes);
+// 4. User routes - REQUIRED auth (admin only)
+app.use('/api', authRequired, authorize('admin'), userRoutes);
+
+app.use('/api', messageRoutes);
 
 // ==================== Health Check ====================
 app.get('/health', async (req: Request, res: Response) => {
@@ -127,4 +130,3 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 });
 
 export default app;
-
