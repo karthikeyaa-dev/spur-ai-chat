@@ -9,15 +9,6 @@ router.use(authOptional);
 
 /**
  * @swagger
- * tags:
- *   - name: Messages
- *     description: Message management endpoints
- */
-
-// ==================== Messages ====================
-
-/**
- * @swagger
  * /api/conversations/{conversationId}/messages:
  *   post:
  *     summary: Send a message in a conversation
@@ -29,6 +20,15 @@ router.use(authOptional);
  *         schema:
  *           type: string
  *         description: The ID of the conversation
+ *       - in: query
+ *         name: session_id
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: |
+ *           Required for guest users only.
+ *           Optional for authenticated users (JWT token is used).
+ *         example: guest-session-123
  *     requestBody:
  *       required: true
  *       content:
@@ -42,10 +42,6 @@ router.use(authOptional);
  *                 type: string
  *                 description: The user's message
  *                 example: How do I reset my password?
- *               session_id:
- *                 type: string
- *                 description: Required for guest users
- *                 example: guest-session-123
  *     responses:
  *       200:
  *         description: Message sent successfully
@@ -97,13 +93,17 @@ router.use(authOptional);
  *                   type: string
  *                   nullable: true
  *       400:
- *         description: Missing content or session_id
+ *         description: |
+ *           Missing required fields:
+ *           - content is always required
+ *           - session_id is required for guest users
  *       404:
  *         description: Conversation not found
  *       500:
  *         description: Internal server error
  */
 router.post('/:conversationId/messages', MessageController.sendMessage);
+
 
 /**
  * @swagger
