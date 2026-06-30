@@ -3,48 +3,122 @@ import { v4 as uuidv4 } from "uuid";
 import { decodeToken, isTokenExpired } from "../utils/hmac";
 import { AuthRequest } from "../types/authRequest";
 
-/**
- * Optional auth:
- * - If JWT exists → authenticated user
- * - Else → guest session via sessionId
- */
-export function authOptional(req: AuthRequest, res: Response, next: NextFunction) {
+
+interface TokenPayload {
+  sub?: string;
+  id?: string;
+  email: string;
+  role?: string;
+}
+
+
+export function authOptional(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) {
+
   const authHeader = req.headers.authorization;
-  const sessionId = req.query.session_id as string | undefined;
 
-  // 🟡 PRIORITY 1: JWT USER
+  const sessionId =
+    req.query.session_id as string | undefined;
+
+
+  // ======================
+  // AUTHENTICATED USER
+  // ======================
+
   if (authHeader?.startsWith("Bearer ")) {
+
     try {
-      const token = authHeader.split(" ")[1];
-      const payload = decodeToken<{
-        sub?: string;
-        id?: string;
-        email: string;
-        role: string;
-      }>(token);
 
-      if (!isTokenExpired(token)) {
-        const userId = payload.sub || payload.id;
+      const token =
+        authHeader.split(" ")[1];
 
-        if (userId) {
-          req.user = {
-            id: userId,
-            email: payload.email,
-            role: payload.role || "user",
-          };
 
-          req.sessionId = undefined;
-          return next();
-        }
+      const payload =
+        decodeToken<TokenPayload>(token);
+
+
+      if (isTokenExpired(token)) {
+
+        return res.status(401).json({
+          success: false,
+          message: "Token expired"
+        });
+
       }
-    } catch (err) {
-      // ignore token errors → fallback to guest
+
+
+      const userId =
+        payload.sub || payload.id;
+
+
+      if (!userId) {
+
+        return res.status(401).json({
+          success: false,
+          message: "Invalid token"
+        });
+
+      }
+
+
+      req.user = {
+        id: userId,
+        email: payload.email,
+        role: payload.role || "user"
+      };
+
+
+      // IMPORTANT:
+      // authenticated users don't use redis sessions
+
+      req.sessionId = undefined;
+
+
+      console.log(
+        "USER REQUEST:",
+        req.user
+      );
+
+
+      return next();
+
+
+    } catch(err) {
+
+      console.error(
+        "JWT ERROR:",
+        err
+      );
+
+      return res.status(401).json({
+        success:false,
+        message:"Invalid token"
+      });
+
     }
   }
 
-  // 🟡 PRIORITY 2: GUEST SESSION
+
+
+  // ======================
+  // GUEST USER
+  // ======================
+
   req.user = undefined;
-  req.sessionId = sessionId || uuidv4();
+
+
+  req.sessionId =
+    sessionId || uuidv4();
+
+
+  console.log(
+    "GUEST REQUEST:",
+    req.sessionId
+  );
+
 
   return next();
 }
