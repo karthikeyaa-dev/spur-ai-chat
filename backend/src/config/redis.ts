@@ -1,6 +1,9 @@
 import dotenv from "dotenv";
 import path from "path";
-import { createClient } from "redis";
+import {
+  createClient,
+  RedisClientType
+} from "redis";
 
 
 dotenv.config({
@@ -8,8 +11,11 @@ dotenv.config({
 });
 
 
-const host = process.env.REDIS_HOST;
-const port = Number(process.env.REDIS_PORT);
+const host =
+  process.env.REDIS_HOST;
+
+const port =
+  Number(process.env.REDIS_PORT);
 
 
 if (!host || !port || Number.isNaN(port)) {
@@ -19,41 +25,44 @@ if (!host || !port || Number.isNaN(port)) {
 }
 
 
-console.log(
-  `[Redis] Connecting to ${host}:${port}`
-);
+// ==================== Redis Client ====================
+
+export const redisClient: RedisClientType =
+  createClient({
+    socket: {
+      host,
+      port,
+
+      reconnectStrategy(
+        retries: number
+      ) {
+
+        const delay =
+          Math.min(
+            retries * 500,
+            5000
+          );
 
 
-export const redisClient = createClient({
-  socket: {
-    host,
-    port,
-
-    reconnectStrategy(retries: number) {
-
-      const delay = Math.min(
-        retries * 500,
-        5000
-      );
+        console.log(
+          `[Redis] reconnect attempt ${retries}, retrying in ${delay}ms`
+        );
 
 
-      console.log(
-        `[Redis] Reconnect attempt ${retries}, retrying in ${delay}ms`
-      );
-
-
-      return delay;
+        return delay;
+      },
     },
-  },
-});
+  });
 
 
-// ==================== Redis Events ====================
+// ==================== Events ====================
 
 redisClient.on(
   "connect",
   () => {
-    console.log("[Redis] Connecting...");
+    console.log(
+      "[Redis] Connecting..."
+    );
   }
 );
 
@@ -61,7 +70,19 @@ redisClient.on(
 redisClient.on(
   "ready",
   () => {
-    console.log("[Redis] Ready");
+    console.log(
+      "[Redis] Ready"
+    );
+  }
+);
+
+
+redisClient.on(
+  "reconnecting",
+  () => {
+    console.log(
+      "[Redis] Reconnecting..."
+    );
   }
 );
 
@@ -80,18 +101,6 @@ redisClient.on(
 
 
 redisClient.on(
-  "reconnecting",
-  () => {
-
-    console.log(
-      "[Redis] Reconnecting..."
-    );
-
-  }
-);
-
-
-redisClient.on(
   "end",
   () => {
 
@@ -103,7 +112,7 @@ redisClient.on(
 );
 
 
-// ==================== Startup Connection ====================
+// ==================== Startup ====================
 
 export const redisReady =
   redisClient
@@ -111,7 +120,7 @@ export const redisReady =
     .then(() => {
 
       console.log(
-        "[Redis] Connection established successfully"
+        "[Redis] Connected successfully"
       );
 
 
@@ -126,7 +135,6 @@ export const redisReady =
       );
 
 
-      // stop application
       process.exit(1);
 
     });
