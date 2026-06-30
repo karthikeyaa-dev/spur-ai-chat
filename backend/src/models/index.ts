@@ -1,5 +1,4 @@
 import { Sequelize } from "sequelize";
-import configFile from "../config/config";
 import User from "./user.model";
 import Conversation from "./conversation.model";
 import Message from "./message.model";
@@ -7,16 +6,17 @@ import RefreshToken from "./RefreshToken.model";
 import VerificationToken from "./VerificationToken.model";
 import OAuthAccount from "./OauthAccount.model";
 
-// Determine environment
-const env = process.env.NODE_ENV || "development";
-const config = configFile[env];
-
-// Initialize Sequelize
+// Initialize Sequelize from environment variables
 const sequelize = new Sequelize(
-  config.database!,
-  config.username!,
-  config.password,
-  config
+  process.env.DB_NAME!,
+  process.env.DB_USER!,
+  process.env.DB_PASSWORD!,
+  {
+    host: process.env.DB_HOST || "localhost",
+    port: Number(process.env.DB_PORT) || 5432,
+    dialect: "postgres",
+    logging: false,
+  }
 );
 
 // Initialize all models

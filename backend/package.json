@@ -4,9 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "ts-node server.ts",
-    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts",
     "build": "tsc",
+    "start": "node dist/src/server.js",
     "create-admin": "ts-node src/scripts/createAdmin.ts",
     "seed": "npm run create-admin"
   },
