@@ -4,6 +4,11 @@ import swaggerJsdoc from "swagger-jsdoc";
 import path from "path";
 
 export const setupSwagger = (app: Application) => {
+  // Determine the correct server URL
+  const serverUrl =
+    process.env.API_URL ||
+    `http://localhost:${process.env.PORT || 3000}`;
+
   const options: swaggerJsdoc.Options = {
     definition: {
       openapi: "3.0.0",
@@ -20,8 +25,11 @@ export const setupSwagger = (app: Application) => {
 
       servers: [
         {
-          url: `http://localhost:${process.env.PORT || 3000}`,
-          description: "Development server",
+          url: serverUrl,
+          description:
+            process.env.NODE_ENV === "production"
+              ? "Production Server"
+              : "Development Server",
         },
       ],
 
@@ -44,7 +52,7 @@ export const setupSwagger = (app: Application) => {
       ],
     },
 
-    // Support both development (.ts) and production Docker build (.js)
+    // Supports both development (.ts) and production (.js)
     apis: [
       path.join(__dirname, "../routes/*.js"),
       path.join(__dirname, "../../src/routes/*.ts"),
@@ -54,16 +62,25 @@ export const setupSwagger = (app: Application) => {
   const specs = swaggerJsdoc(options);
 
   const swaggerUiOptions = {
+    explorer: true,
+
     swaggerOptions: {
       persistAuthorization: true,
       docExpansion: "none",
       operationsSorter: "method",
       tagsSorter: "alpha",
+      displayRequestDuration: true,
     },
+
+    customSiteTitle: "Spur AI Chat API Docs",
 
     customCss: `
       .swagger-ui .topbar {
         display: none;
+      }
+
+      .swagger-ui .info {
+        margin: 30px 0;
       }
     `,
   };
@@ -75,4 +92,5 @@ export const setupSwagger = (app: Application) => {
   );
 
   console.log("📚 Swagger docs available at /api-docs");
+  console.log(`🌐 Swagger Server URL: ${serverUrl}`);
 };
