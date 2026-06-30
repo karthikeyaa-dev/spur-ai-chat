@@ -76,7 +76,7 @@ class ConversationService {
     );
 
     const sessionKey = `guest:session:${principal.sessionId}:conversations`;
-    const existing = await redisClient.get(sessionKey);
+    const existing = await redisClient.get(sessionKey) as string | null;
     const conversations = existing ? JSON.parse(existing) : [];
     conversations.push({
       id: conversationId,
@@ -158,7 +158,7 @@ class ConversationService {
     // Guest user
     if (principal.type === "guest" && principal.sessionId) {
       const sessionKey = `guest:session:${principal.sessionId}:conversations`;
-      const existing = await redisClient.get(sessionKey);
+      const existing = await redisClient.get(sessionKey) as string | null;
 
       if (!existing) {
         return {
@@ -173,7 +173,7 @@ class ConversationService {
 
       for (const summary of conversationSummaries) {
         const convKey = `guest:session:${principal.sessionId}:conversation:${summary.id}`;
-        const convData = await redisClient.get(convKey);
+        const convData = await redisClient.get(convKey) as string | null;
         
         if (convData) {
           const conversation: GuestConversation = JSON.parse(convData);
@@ -263,7 +263,7 @@ class ConversationService {
     // Guest user
     if (principal.type === "guest" && principal.sessionId) {
       const convKey = `guest:session:${principal.sessionId}:conversation:${conversationId}`;
-      const convData = await redisClient.get(convKey);
+      const convData = await redisClient.get(convKey) as string | null;
 
       if (!convData) {
         return null;
@@ -318,7 +318,7 @@ class ConversationService {
     // Guest user
     if (principal.type === "guest" && principal.sessionId) {
       const convKey = `guest:session:${principal.sessionId}:conversation:${conversationId}`;
-      const convData = await redisClient.get(convKey);
+      const convData = await redisClient.get(convKey) as string | null;
 
       if (!convData) {
         return { deleted: false, isGuest: true };
@@ -328,7 +328,7 @@ class ConversationService {
 
       // Remove from session's conversation list
       const sessionKey = `guest:session:${principal.sessionId}:conversations`;
-      const existing = await redisClient.get(sessionKey);
+      const existing = await redisClient.get(sessionKey) as string | null;
       
       if (existing) {
         const conversations = JSON.parse(existing);
@@ -389,7 +389,7 @@ class ConversationService {
     // Guest user
     if (principal.type === "guest" && principal.sessionId) {
       const convKey = `guest:session:${principal.sessionId}:conversation:${conversationId}`;
-      const convData = await redisClient.get(convKey);
+      const convData = await redisClient.get(convKey) as string | null;
 
       if (!convData) {
         return null;
@@ -403,7 +403,7 @@ class ConversationService {
 
       // Update in session list
       const sessionKey = `guest:session:${principal.sessionId}:conversations`;
-      const existing = await redisClient.get(sessionKey);
+      const existing = await redisClient.get(sessionKey) as string | null;
       
       if (existing) {
         const conversations = JSON.parse(existing);
@@ -458,7 +458,7 @@ class ConversationService {
     // Guest user
     if (principal.type === "guest" && principal.sessionId) {
       const convKey = `guest:session:${principal.sessionId}:conversation:${conversationId}`;
-      const convData = await redisClient.get(convKey);
+      const convData = await redisClient.get(convKey) as string | null;
 
       if (!convData) {
         return { closed: false, isGuest: true };
@@ -472,7 +472,7 @@ class ConversationService {
 
       // Update in session list
       const sessionKey = `guest:session:${principal.sessionId}:conversations`;
-      const existing = await redisClient.get(sessionKey);
+      const existing = await redisClient.get(sessionKey) as string | null;
       
       if (existing) {
         const conversations = JSON.parse(existing);
