@@ -79,10 +79,12 @@ app.use('/api/auth', authRoutes);
 // 3. Conversation routes - with OPTIONAL auth (guest + authenticated)
 app.use('/api/conversations', authOptional, conversationRoutes);
 
+app.use('/api', messageRoutes)
+
 // 4. User routes - REQUIRED auth (admin only)
 app.use('/api', authRequired, authorize('admin'), userRoutes);
 
-app.use('/api', messageRoutes);
+
 
 // ==================== Health Check ====================
 app.get('/health', async (req: Request, res: Response) => {
