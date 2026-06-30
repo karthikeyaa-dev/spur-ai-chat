@@ -75,11 +75,11 @@ setupSwagger(app);
 // ==================== Routes ====================
 // 2. Public auth routes (register, login, refresh, verify-email, etc.)
 app.use('/api/auth', authRoutes);
-
+app.use('/api', messageRoutes)
 // 3. Conversation routes - with OPTIONAL auth (guest + authenticated)
 app.use('/api/conversations', authOptional, conversationRoutes);
 
-app.use('/api', messageRoutes)
+
 
 // 4. User routes - REQUIRED auth (admin only)
 app.use('/api', authRequired, authorize('admin'), userRoutes);
