@@ -66,7 +66,7 @@ class MessageService {
     } else if (principal.type === "guest" && principal.sessionId) {
       // Guest user - get from Redis
       const convKey = `guest:session:${principal.sessionId}:conversation:${conversationId}`;
-      const convData = await redisClient.get(convKey);
+      const convData = await redisClient.get(convKey) as string | null;
       if (!convData) {
         throw new Error('Conversation not found');
       }
@@ -302,7 +302,7 @@ class MessageService {
     } else if (principal.type === "guest" && principal.sessionId) {
       // Guest user - get from Redis
       const convKey = `guest:session:${principal.sessionId}:conversation:${conversationId}`;
-      const convData = await redisClient.get(convKey);
+      const convData = await redisClient.get(convKey) as string | null;
 
       if (!convData) {
         throw new Error('Conversation not found');
@@ -381,7 +381,7 @@ class MessageService {
     } else if (principal.type === "guest" && principal.sessionId) {
       // Guest user - delete from Redis
       const convKey = `guest:session:${principal.sessionId}:conversation:${conversationId}`;
-      const convData = await redisClient.get(convKey);
+      const convData = await redisClient.get(convKey) as string | null;
 
       if (!convData) {
         throw new Error('Conversation not found');
@@ -443,7 +443,7 @@ class MessageService {
     } else if (principal.type === "guest" && principal.sessionId) {
       // Guest user - clear from Redis
       const convKey = `guest:session:${principal.sessionId}:conversation:${conversationId}`;
-      const convData = await redisClient.get(convKey);
+      const convData = await redisClient.get(convKey) as string | null;
 
       if (!convData) {
         throw new Error('Conversation not found');

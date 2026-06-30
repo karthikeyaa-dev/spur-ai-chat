@@ -1,140 +1,52 @@
 import dotenv from "dotenv";
 import path from "path";
-import {
-  createClient,
-  RedisClientType
-} from "redis";
+import { createClient, RedisClientType } from "redis";
 
+dotenv.config({ path: path.join(__dirname, "../.env") });
 
-dotenv.config({
-  path: path.join(__dirname, "../.env"),
-});
+const host = process.env.REDIS_HOST;
+const port = Number(process.env.REDIS_PORT);
 
-
-const host =
-  process.env.REDIS_HOST;
-
-const port =
-  Number(process.env.REDIS_PORT);
-
-
-if (!host || !port || Number.isNaN(port)) {
+if (!host || !port) {
   throw new Error(
-    "Redis configuration missing. Please set REDIS_HOST and REDIS_PORT"
+    "Redis configuration missing. REDIS_HOST and REDIS_PORT are required."
   );
 }
 
+export const redisClient: RedisClientType = createClient({
+  socket: {
+    host,
+    port,
+    reconnectStrategy(retries) {
+      if (retries > 5) {
+        return new Error("Redis retry limit reached");
+      }
 
-// ==================== Redis Client ====================
-
-export const redisClient: RedisClientType =
-  createClient({
-    socket: {
-      host,
-      port,
-
-      reconnectStrategy(
-        retries: number
-      ) {
-
-        const delay =
-          Math.min(
-            retries * 500,
-            5000
-          );
-
-
-        console.log(
-          `[Redis] reconnect attempt ${retries}, retrying in ${delay}ms`
-        );
-
-
-        return delay;
-      },
+      return Math.min(retries * 500, 3000);
     },
+  },
+});
+
+redisClient.on("connect", () => {
+  console.log("[Redis] Connecting...");
+});
+
+redisClient.on("ready", () => {
+  console.log("[Redis] Ready");
+});
+
+redisClient.on("error", (err) => {
+  console.error("[Redis] Error:", err.message);
+});
+
+export async function connectRedis() {
+  if (!redisClient.isOpen) {
+    await redisClient.connect();
+  }
+}
+
+connectRedis()
+  .catch((err) => {
+    console.error("[Redis] Startup failed:", err.message);
+    process.exit(1);
   });
-
-
-// ==================== Events ====================
-
-redisClient.on(
-  "connect",
-  () => {
-    console.log(
-      "[Redis] Connecting..."
-    );
-  }
-);
-
-
-redisClient.on(
-  "ready",
-  () => {
-    console.log(
-      "[Redis] Ready"
-    );
-  }
-);
-
-
-redisClient.on(
-  "reconnecting",
-  () => {
-    console.log(
-      "[Redis] Reconnecting..."
-    );
-  }
-);
-
-
-redisClient.on(
-  "error",
-  (error) => {
-
-    console.error(
-      "[Redis] Error:",
-      error.message
-    );
-
-  }
-);
-
-
-redisClient.on(
-  "end",
-  () => {
-
-    console.log(
-      "[Redis] Connection closed"
-    );
-
-  }
-);
-
-
-// ==================== Startup ====================
-
-export const redisReady =
-  redisClient
-    .connect()
-    .then(() => {
-
-      console.log(
-        "[Redis] Connected successfully"
-      );
-
-
-      return redisClient;
-
-    })
-    .catch((error) => {
-
-      console.error(
-        "[Redis] Startup failed:",
-        error.message
-      );
-
-
-      process.exit(1);
-
-    });
