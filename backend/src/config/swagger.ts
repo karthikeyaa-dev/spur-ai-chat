@@ -7,6 +7,7 @@ export const setupSwagger = (app: Application) => {
   const options: swaggerJsdoc.Options = {
     definition: {
       openapi: "3.0.0",
+
       info: {
         title: "Spur AI Chat API",
         version: "1.0.0",
@@ -16,44 +17,55 @@ export const setupSwagger = (app: Application) => {
           email: "support@spuraichat.com",
         },
       },
+
       servers: [
         {
           url: `http://localhost:${process.env.PORT || 3000}`,
           description: "Development server",
         },
       ],
-      // ==================== ADD THIS SECTION ====================
+
       components: {
         securitySchemes: {
           bearerAuth: {
             type: "http",
             scheme: "bearer",
             bearerFormat: "JWT",
-            description: 'Enter your JWT token (without the "Bearer " prefix)',
+            description:
+              'Enter your JWT token without the "Bearer " prefix',
           },
         },
       },
+
       security: [
         {
           bearerAuth: [],
         },
       ],
-      // ========================================================
     },
-    apis: [path.join(__dirname, "../routes/*.ts")],
+
+    // Support both development (.ts) and production Docker build (.js)
+    apis: [
+      path.join(__dirname, "../routes/*.js"),
+      path.join(__dirname, "../../src/routes/*.ts"),
+    ],
   };
 
   const specs = swaggerJsdoc(options);
-  
-  // ==================== UPDATED SWAGGER UI OPTIONS ====================
+
   const swaggerUiOptions = {
     swaggerOptions: {
-      persistAuthorization: true, // Keeps token across page reloads
+      persistAuthorization: true,
       docExpansion: "none",
       operationsSorter: "method",
       tagsSorter: "alpha",
     },
-    customCss: ".swagger-ui .topbar { display: none }",
+
+    customCss: `
+      .swagger-ui .topbar {
+        display: none;
+      }
+    `,
   };
 
   app.use(
@@ -61,6 +73,6 @@ export const setupSwagger = (app: Application) => {
     swaggerUi.serve,
     swaggerUi.setup(specs, swaggerUiOptions)
   );
-  
+
   console.log("📚 Swagger docs available at /api-docs");
 };
