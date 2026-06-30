@@ -25,23 +25,26 @@ dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const app: Application = express();
 
-// ==================== CORS Configuration ====================
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
+  .split(",")
+  .map(o => o.trim())
+  .filter(Boolean);
+
 app.use(cors({
   origin: function (origin, callback) {
+    // allow server-to-server / curl / postman
     if (!origin) return callback(null, true);
-    if (process.env.NODE_ENV === 'development') {
+
+    if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173', 'http://localhost:3000'];
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
+
+    console.log("❌ Blocked CORS origin:", origin);
+    return callback(new Error("Not allowed by CORS"));
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-Id', 'X-User-Id'],
+  methods: ['GET','POST','PUT','DELETE','OPTIONS','PATCH'],
+  allowedHeaders: ['Content-Type','Authorization','X-Session-Id','X-User-Id'],
 }));
 
 // ==================== Middleware ====================
