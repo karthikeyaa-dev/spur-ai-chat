@@ -10,7 +10,9 @@ export class MessageController {
     try {
       const userId = (req as any).user?.id;
       const conversationId = req.params.conversationId as string;
-      const { content, session_id } = req.body;
+
+      const { content } = req.body;
+      const session_id = req.query.session_id as string;
 
       const principal = userId
         ? { type: 'user' as const, userId }
@@ -51,8 +53,10 @@ export class MessageController {
         },
         error: null,
       });
+
     } catch (error: any) {
       console.error('Send message error:', error);
+
       return res.status(500).json({
         success: false,
         message: error.message || 'Failed to send message',
